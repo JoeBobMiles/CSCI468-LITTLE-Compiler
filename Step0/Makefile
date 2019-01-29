@@ -1,13 +1,9 @@
 
-LANGUAGE = Java
-
-default: build run
+default: build # run
 
 build:
 	@echo -n "Building ANTLR grammar ..."
-	java -cp ".;../antlr-4.7.2-complete.jar" \
-		org.antlr.v4.Tool -Dlanguage=$(LANGUAGE) *.g4
-	javac -cp ".;../antlr-4.7.2-complete.jar" *.java
+	java -cp ".;../antlr-3.5.2-complete.jar" org.antlr.Tool -o . *.g4
 	@echo " Done"
 
 run:
