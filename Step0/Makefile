@@ -1,17 +1,12 @@
 
-default: build # run
+default: build
 
 build:
 	@echo -n "Building ANTLR grammar ..."
-	java -cp ".;../antlr-3.5.2-complete.jar" org.antlr.Tool -o . *.g4
+	java -cp ".;../antlr-3.5.2-complete.jar" org.antlr.Tool *.g
 	@echo " Done"
 
-run:
-	@echo "Running ANTLR TestRig..."
-	java -cp ".;../antlr-4.7.2-complete.jar" \
-		org.antlr.v4.gui.TestRig hello r -tree
-
 clean:
-	rm -f *.interp *.java *.tokens *.class
+	rm -f *.interp *.tokens *.h *.c
 
 $(VERBOSE).SILENT:
