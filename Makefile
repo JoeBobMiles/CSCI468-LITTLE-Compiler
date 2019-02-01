@@ -1,13 +1,18 @@
 
+source_dir = src
 grammar = TINY.g
-build_dir = build
+antlr_dir = 'antlr'
+antlr_jar = 'bin/antlr-3.5.2-complete.jar'
 
-default:
-	@echo -n "Building ANTLR grammar ..."
-	java -jar antlr-3.5.2-complete.jar $(grammar) -o $(build_dir)
-	@echo " Done"
+$(antlr_dir):
+	@echo "Building ANTLR grammar ..."
+	java -jar $(antlr_jar) $(grammar) -o $(antlr_dir) 2>&1 | (grep -v '^warning(24):' || true)
+	@echo "Done"
 
 clean:
-	rm -rf $(build_dir)
+	rm -rf $(antlr_dir)
+
+tags:
+	ctags 
 
 $(VERBOSE).SILENT:
