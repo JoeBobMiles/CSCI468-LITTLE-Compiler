@@ -4,23 +4,20 @@ options {
     language = C;
 }
 
-WS : (' '|'\t'|'\r'|'\n')+ { skip(); };
+keyword : 'PROGRAM' | 'BEGIN' | 'END' | 'FUNCTION' | 'READ' | 'WRITE' | 'IF' | 'ELSE' | 'ENDIF' | 'WHILE' | 'ENDWHILE' | 'CONTINUE' | 'BREAK' | 'RETURN' | 'INT' | 'VOID' | 'STRING' | 'FLOAT';
 
-KEYWORD : 'PROGRAM' | 'BEGIN' | 'END' | 'FUNCTION' | 'READ' | 'WRITE' | 'IF' | 'ELSE' | 'ENDIF' | 'WHILE' | 'ENDWHILE' | 'CONTINUE' | 'BREAK' | 'RETURN' | 'INT' | 'VOID' | 'STRING' | 'FLOAT';
+operator : ':=' | '+' | '-' | '*' | '/' | '=' | '!=' | '<' | '>' | '(' | ')' | ';' | ',' | '<=' | '>=';
 
-OPERATOR : ':=' | '+' | '-' | '*' | '/' | '=' | '!=' | '<' | '>' | '(' | ')' | ';' | ',' | '<=' | '>=';
-
-IDENTIFIER : (ALPHA) (ALPHANUM)*;
-
-LITERAL : INTLITERAL | FLOATLITERAL | STRINGLITERAL;
+identifier : ALPHA ALPHANUM*;
 
 INTLITERAL : NUMBER+;
 FLOATLITERAL : NUMBER* '.' NUMBER+;
 STRINGLITERAL : '"' ~'"'* '"';
 
-COMMENT : '--' ~('\n'|'\r'|)* '\r'? '\n';
+COMMENT : '--' ~('\n'|'\r')* '\r'? '\n' { skip(); };
 
-ALPHANUM : NUMBER|ALPHA;
-ALPHA : ('a'..'z'|'A'..'Z');
-NUMBER : '0'..'9';
+fragment ALPHA : 'a'..'z' | 'A'..'Z';
+fragment NUMBER : '0'..'9';
+fragment ALPHANUM : NUMBER | ALPHA;
 
+WS : (' '|'\t'|'\r'|'\n')+ { skip(); };

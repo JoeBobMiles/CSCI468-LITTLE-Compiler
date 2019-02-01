@@ -2,11 +2,9 @@
 TARGET = TINY.g
 BUILD_DIR = build/
 
-default: build
-
-build:
+default:
 	@echo -n "Building ANTLR grammar ..."
-	java -cp ".;./antlr-3.5.2-complete.jar" org.antlr.Tool $(TARGET) -o $(BUILD_DIR)
+	java -jar antlr-3.5.2-complete.jar $(TARGET) -o $(BUILD_DIR)
 	@echo " Done"
 
 clean:
