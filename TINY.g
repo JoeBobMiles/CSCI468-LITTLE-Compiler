@@ -1,26 +1,22 @@
 grammar TINY;
 
-options {
-    language = C;
-}
+// ANTLR expects 'rules' in the grammar to be lowercase.
+keyword : 'PROGRAM' | 'BEGIN' | 'END' | 'FUNCTION' | 'READ' | 'WRITE' | 'IF' | 'ELSE' | 'ENDIF' | 'WHILE' | 'ENDWHILE' | 'CONTINUE' | 'BREAK' | 'RETURN' | 'INT' | 'VOID' | 'STRING' | 'FLOAT' ;
 
-WS : (' '|'\t'|'\r'|'\n')+ { skip(); };
+opr : ':=' | '+' | '-' | '*' | '/' | '=' | '!=' | '<' | '>' | '(' | ')' | ';' | ',' | '<=' | '>=' ;
 
-KEYWORD : 'PROGRAM' | 'BEGIN' | 'END' | 'FUNCTION' | 'READ' | 'WRITE' | 'IF' | 'ELSE' | 'ENDIF' | 'WHILE' | 'ENDWHILE' | 'CONTINUE' | 'BREAK' | 'RETURN' | 'INT' | 'VOID' | 'STRING' | 'FLOAT';
+identifier : (ALPHA) (ALPHANUM)* ;
 
-OPERATOR : ':=' | '+' | '-' | '*' | '/' | '=' | '!=' | '<' | '>' | '(' | ')' | ';' | ',' | '<=' | '>=';
+literal : INTLITERAL | FLOATLITERAL | STRINGLITERAL ;
 
-IDENTIFIER : (ALPHA) (ALPHANUM)*;
+INTLITERAL : NUMBER+ ;
+FLOATLITERAL : NUMBER* '.' NUMBER+ ;
+STRINGLITERAL : '"' ~'"'* '"' ;
 
-LITERAL : INTLITERAL | FLOATLITERAL | STRINGLITERAL;
+comment : '--' ~('\n'|'\r')* '\r'? '\n' ;
 
-INTLITERAL : NUMBER+;
-FLOATLITERAL : NUMBER* '.' NUMBER+;
-STRINGLITERAL : '"' ~'"'* '"';
+ALPHANUM : NUMBER|ALPHA ;
+ALPHA : ('a'..'z'|'A'..'Z') ;
+NUMBER : '0'..'9' ;
 
-COMMENT : '--' ~('\n'|'\r'|)* '\r'? '\n';
-
-ALPHANUM : NUMBER|ALPHA;
-ALPHA : ('a'..'z'|'A'..'Z');
-NUMBER : '0'..'9';
-
+WS : [ \t\r\n]+ -> skip ;
