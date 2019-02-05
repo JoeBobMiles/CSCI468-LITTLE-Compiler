@@ -1,40 +1,46 @@
-target   = test
-language = TINY
+program_name = test
+language     = TINY
+build_dir    = build
 
-source_dir  = src
-runtime_dir = runtime
-antlr_dir   = antlr
-build_dir   = build
+s = .cpp
+o = .o
+d = .mk
+e =
 
-main            = $(source_dir)/main.cpp
-source          = $(filter-out $(main),$(shell find $(source_dir) -type f -name '*.cpp'))
-objects         = $(patsubst %.cpp,$(build_dir)/%.o,$(source))
-antlr_source    = $(patsubst %,$(antlr_dir)/$(language)%.cpp,Lexer Parser)
-antlr_objects   = $(patsubst %.cpp,$(build_dir)/%.o,$(antlr_source))
-runtime_source  = $(shell find $(runtime_dir) -type f -name '*.cpp')
-runtime_objects = $(patsubst %.cpp,$(build_dir)/%.o,$(runtime_source))
+main   = $(source_dir)/main$s
+target = $(build_dir)/$(program_name)$e
 
-ANTLR      = java -jar antlr-4.7.2-complete.jar
+source_dir = src
+source     = $(filter-out $(main),$(shell find $(source_dir) -type f -name "*$s"))
+objects    = $(patsubst %$s,$(build_dir)/%$o,$(source))
+
+antlr_dir     = antlr
+antlr_source  = $(patsubst %,$(antlr_dir)/$(language)%$s,Lexer Parser)
+antlr_objects = $(patsubst %$s,$(build_dir)/%$o,$(antlr_source))
+
+runtime_dir     = runtime
+runtime_source  = $(shell find $(runtime_dir) -type f -name "*$s")
+runtime_objects = $(patsubst %$s,$(build_dir)/%$o,$(runtime_source))
+
+ANTLR      = java -jar bin/antlr-4.7.2-complete.jar
 ANTLRFLAGS = -Dlanguage=Cpp -no-listener -no-visitor
 
-override CXXFLAGS := -Wall -Wextra -I$(source_dir) -I$(antlr_dir) -I$(runtime_dir) $(CXXFLAGS)
+CPPDIRS = -I$(source_dir) -I$(antlr_dir) -I$(runtime_dir) -iquote $(runtime_dir)
+
+override CXXFLAGS := -Wall -Wextra $(CPPDIRS) $(CXXFLAGS)
 override LDLIBS   := $(LDLIBS)
 override LDFLAGS  := $(LDFLAGS)
 
-$(build_dir)/$(target): $(main) $(antlr_objects) $(runtime_objects) $(objects) | $(build_dir)
+all: $(target)
+
+$(target): $(main) $(antlr_objects) $(runtime_objects) $(objects)
 	@echo "  CXX   $@"
+	mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDLIBS) $(LDFLAGS)
 
-$(objects): $(build_dir)/%.o: %.cpp | $(build_dir)/$(source_dir)
+$(build_dir)/%$o: %$s
 	@echo "  CXX   $@"
-	$(CXX) -c $(CXXFLAGS) -o $@ $^ $(LDLIBS) $(LDFLAGS)
-
-$(antlr_objects): $(build_dir)/%.o: %.cpp | $(build_dir)/$(antlr_dir)
-	@echo "  CXX   $@"
-	$(CXX) -c $(CXXFLAGS) -iquote $(runtime_dir) -o $@ $^ $(LDLIBS) $(LDFLAGS)
-
-$(runtime_objects): $(build_dir)/%.o: %.cpp | $(build_dir)/$(runtime_dir)
-	@echo "  CXX   $@"
+	mkdir -p $(dir $@)
 	$(CXX) -c $(CXXFLAGS) -o $@ $^ $(LDLIBS) $(LDFLAGS)
 
 $(antlr_source): $(antlr_dir)
@@ -43,19 +49,16 @@ $(antlr_dir): $(language).g
 	@echo "  ANTLR $^"
 	$(ANTLR) $(ANTLRFLAGS) $< -o $(antlr_dir)
 
-$(build_dir):
-	@echo "* MKDIR $@"
-	mkdir -p $@
-
-$(build_dir)/%:
-	@echo "  MKDIR $@"
-	mkdir -p $@
-	find $* -type d -exec mkdir -p $(build_dir)/{} \;
+.PHONY: clean cleaner tags
 
 clean:
+	rm -f $(target)
+	[ -e $(build_dir)/$(source_dir) ] && find $(build_dir)/$(source_dir) -type f -not -name "*$d" -delete || true
+
+cleaner:
 	rm -rf $(antlr_dir) $(build_dir)
 
 tags:
-	ctags -R $(antlr_source) $(source_dir) $(runtime_dir)
+	ctags -R $(antlr_dir) $(source_dir) $(runtime_dir)
 
 $(VERBOSE).SILENT:
