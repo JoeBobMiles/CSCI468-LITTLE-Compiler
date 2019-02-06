@@ -11,8 +11,8 @@
 
 using namespace antlr4;
 using namespace std;
-using namespace std::string_literals;
 
+#if 0
 class OurListener : public TINYBaseListener {
 public:
   virtual void enterFile(TINYParser::FileContext *ctx) override {
@@ -30,6 +30,55 @@ public:
   }
   //virtual void visitErrorNode(antlr4::tree::ErrorNode *node) override { }
 };
+#endif
+
+char *typeToString(size_t typeId) {
+    switch (typeId) {
+    case TINYLexer::PROGRAM:       return "PROGRAM";
+    case TINYLexer::BEGIN:         return "BEGIN";
+    case TINYLexer::END:           return "END";
+    case TINYLexer::FUNCTION:      return "FUNCTION";
+    case TINYLexer::READ:          return "READ";
+    case TINYLexer::WRITE:         return "WRITE";
+    case TINYLexer::IF:            return "IF";
+    case TINYLexer::ELSE:          return "ELSE";
+    case TINYLexer::ENDIF:         return "ENDIF";
+    case TINYLexer::WHILE:         return "WHILE";
+    case TINYLexer::ENDWHILE:      return "ENDWHILE";
+    case TINYLexer::CONTINUE:      return "CONTINUE";
+    case TINYLexer::BREAK:         return "BREAK";
+    case TINYLexer::RETURN:        return "RETURN";
+    case TINYLexer::INT:           return "INT";
+    case TINYLexer::VOID:          return "VOID";
+    case TINYLexer::STRING:        return "STRING";
+    case TINYLexer::FLOAT:         return "FLOAT";
+    case TINYLexer::COLONEQ:       return "COLONEQ";
+    case TINYLexer::PLUS:          return "PLUS";
+    case TINYLexer::MINUS:         return "MINUS";
+    case TINYLexer::STAR:          return "STAR";
+    case TINYLexer::SLASH:         return "SLASH";
+    case TINYLexer::EQUAL:         return "EQUAL";
+    case TINYLexer::NOTEQ:         return "NOTEQ";
+    case TINYLexer::LT:            return "LT";
+    case TINYLexer::GT:            return "GT";
+    case TINYLexer::OPENPAREN:     return "OPENPAREN";
+    case TINYLexer::CLOSEPAREN:    return "CLOSEPAREN";
+    case TINYLexer::SEMICOLON:     return "SEMICOLON";
+    case TINYLexer::COMMA:         return "COMMA";
+    case TINYLexer::LTEQ:          return "LTEQ";
+    case TINYLexer::GTEQ:          return "GTEQ";
+    case TINYLexer::IDENTIFIER:    return "IDENTIFIER";
+    case TINYLexer::INTLITERAL:    return "INTLITERAL";
+    case TINYLexer::FLOATLITERAL:  return "FLOATLITERAL";
+    case TINYLexer::STRINGLITERAL: return "STRINGLITERAL";
+    case TINYLexer::COMMENT:       return "COMMENT";
+    case TINYLexer::ALPHANUM:      return "ALPHANUM";
+    case TINYLexer::ALPHA:         return "ALPHA";
+    case TINYLexer::NUMBER:        return "NUMBER";
+    case TINYLexer::WS:            return "WS";
+    default:                       return "EOF";
+    }
+}
 
 int main(int argc, char **argv) {
     ifstream file(argc == 1? "example.tiny": argv[1]);
@@ -42,7 +91,11 @@ int main(int argc, char **argv) {
 
         tokenStream.fill();
         for (Token *token : tokenStream.getTokens()) {
-            printf("%s\n", token->getText().c_str());
+            size_t type = token->getType();
+            string text = token->getText();
+
+            printf("Type   %s\n", typeToString(type));
+            printf("Text   %s\n", text.c_str());
         }
 #else /* step 2? */
         TINYParser parser(&tokenStream);
