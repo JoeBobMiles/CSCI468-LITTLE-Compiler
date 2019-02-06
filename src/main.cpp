@@ -32,52 +32,40 @@ public:
 };
 #endif
 
-char *typeToString(size_t typeId) {
-    switch (typeId) {
-    case TINYLexer::PROGRAM:       return "KEYWORD";
-    case TINYLexer::BEGIN:         return "KEYWORD";
-    case TINYLexer::END:           return "KEYWORD";
-    case TINYLexer::FUNCTION:      return "KEYWORD";
-    case TINYLexer::READ:          return "KEYWORD";
-    case TINYLexer::WRITE:         return "KEYWORD";
-    case TINYLexer::IF:            return "KEYWORD";
-    case TINYLexer::ELSE:          return "KEYWORD";
-    case TINYLexer::ENDIF:         return "KEYWORD";
-    case TINYLexer::WHILE:         return "KEYWORD";
-    case TINYLexer::ENDWHILE:      return "KEYWORD";
-    case TINYLexer::CONTINUE:      return "KEYWORD";
-    case TINYLexer::BREAK:         return "KEYWORD";
-    case TINYLexer::RETURN:        return "KEYWORD";
-    case TINYLexer::INT:           return "KEYWORD";
-    case TINYLexer::VOID:          return "KEYWORD";
-    case TINYLexer::STRING:        return "KEYWORD";
-    case TINYLexer::FLOAT:         return "KEYWORD";
-    case TINYLexer::COLONEQ:       return "OPERATOR";
-    case TINYLexer::PLUS:          return "OPERATOR";
-    case TINYLexer::MINUS:         return "OPERATOR";
-    case TINYLexer::STAR:          return "OPERATOR";
-    case TINYLexer::SLASH:         return "OPERATOR";
-    case TINYLexer::EQUAL:         return "OPERATOR";
-    case TINYLexer::NOTEQ:         return "OPERATOR";
-    case TINYLexer::LT:            return "OPERATOR";
-    case TINYLexer::GT:            return "OPERATOR";
-    case TINYLexer::OPENPAREN:     return "OPERATOR";
-    case TINYLexer::CLOSEPAREN:    return "OPERATOR";
-    case TINYLexer::SEMICOLON:     return "OPERATOR";
-    case TINYLexer::COMMA:         return "OPERATOR";
-    case TINYLexer::LTEQ:          return "OPERATOR";
-    case TINYLexer::GTEQ:          return "OPERATOR";
-    case TINYLexer::IDENTIFIER:    return "IDENTIFIER";
-    case TINYLexer::INTLITERAL:    return "INTLITERAL";
-    case TINYLexer::FLOATLITERAL:  return "FLOATLITERAL";
-    case TINYLexer::STRINGLITERAL: return "STRINGLITERAL";
-    case TINYLexer::COMMENT:       return "COMMENT";
-    case TINYLexer::ALPHANUM:      return "ALPHANUM";
-    case TINYLexer::ALPHA:         return "ALPHA";
-    case TINYLexer::NUMBER:        return "NUMBER";
-    case TINYLexer::WS:            return "WS";
-    default:                       return "EOF";
+void bufferString(char *buffer, size_t size, char *string) {
+    char *end = buffer + size - 1;
+    char *scur = string;
+    char *dcur = buffer;
+
+    do {
+        *dcur = *scur;
     }
+    while (*scur++ && dcur++ < end);
+
+    *end = 0; /* force null terminator */
+}
+
+char *typeToString(size_t typeId) {
+    int found = 0;
+    static char buffer[0x100];
+    size_t foundTypeId;
+
+    FILE *file = fopen("antlr/TINY.tokens", "r");
+
+    for (;;) {
+        int ret = fscanf(file, "%[^=]=%lu\n", buffer, &foundTypeId);
+        found = (typeId == foundTypeId);
+
+        if (found || ret == -1) break;
+    }
+
+    if (!found) {
+        bufferString(buffer, sizeof buffer, "UNKNOWN");
+    }
+
+    fclose(file);
+
+    return buffer;
 }
 
 int main(int argc, char **argv) {
@@ -94,8 +82,10 @@ int main(int argc, char **argv) {
             size_t type = token->getType();
             string text = token->getText();
 
-            printf("Token Type: %s\n", typeToString(type));
-            printf("Value: %s\n", text.c_str());
+            if (text == "<EOF>") break;
+
+            printf("Type   %lu, %s\n", type, typeToString(type));
+            printf("Text   %s\n", text.c_str());
         }
 #else /* step 2? */
         TINYParser parser(&tokenStream);
