@@ -1,2 +1,3 @@
 aoeu := 10; -- a thing
 snth := "a \"string\"";
+aoeu := 10.0;

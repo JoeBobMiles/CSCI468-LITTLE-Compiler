@@ -1,10 +1,14 @@
 grammar TINY;
 
-expr : IDENTIFIER COLONEQ literal SEMICOLON
-     | expr expr
-     ;
+// TODO: actual file structure
+file : expr_list EOF ;
 
-// ANTLR expects 'rules' in the grammar to be lowercase.
+expr_list : (expr SEMICOLON)+ ;
+
+// TODO: more expressions
+expr : IDENTIFIER COLONEQ literal ;
+
+// probably unneccesary
 keyword : PROGRAM | BEGIN | END | FUNCTION | READ | WRITE | IF | ELSE | ENDIF | WHILE | ENDWHILE | CONTINUE | BREAK | RETURN | INT | VOID | STRING | FLOAT ;
 
 PROGRAM:  'PROGRAM';
@@ -26,6 +30,7 @@ VOID:     'VOID';
 STRING:   'STRING';
 FLOAT:    'FLOAT';
 
+// probably unneccesary
 opr : COLONEQ | PLUS | MINUS | STAR | SLASH | EQUAL | NOTEQ | LT | GT | OPENPAREN | CLOSEPAREN | SEMICOLON | COMMA | LTEQ | GTEQ ;
 
 COLONEQ:    ':=';
