@@ -1,5 +1,9 @@
 grammar TINY;
 
+expr : IDENTIFIER COLONEQ literal SEMICOLON
+     | expr expr
+     ;
+
 // ANTLR expects 'rules' in the grammar to be lowercase.
 keyword : PROGRAM | BEGIN | END | FUNCTION | READ | WRITE | IF | ELSE | ENDIF | WHILE | ENDWHILE | CONTINUE | BREAK | RETURN | INT | VOID | STRING | FLOAT ;
 
@@ -40,17 +44,17 @@ COMMA:      ',';
 LTEQ:       '<=';
 GTEQ:       '>=';
 
-identifier : (ALPHA) (ALPHANUM)* ;
+IDENTIFIER : ALPHA ALPHANUM* ;
 
 literal : INTLITERAL | FLOATLITERAL | STRINGLITERAL ;
 
 INTLITERAL : NUMBER+ ;
 FLOATLITERAL : NUMBER* '.' NUMBER+ ;
-STRINGLITERAL : '"' .*? '"' ;
+STRINGLITERAL : '"' .*? ~'\\' '"' ;
 
-comment : '--' .*? '\r'? '\n' ;
+COMMENT : '--' .*? '\r'? '\n' -> skip ;
 
-ALPHANUM : NUMBER|ALPHA ;
+ALPHANUM : NUMBER | ALPHA ;
 ALPHA : [a-zA-Z] ;
 NUMBER : [0-9] ;
 

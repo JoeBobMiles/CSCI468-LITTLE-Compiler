@@ -15,7 +15,7 @@ source     = $(filter-out $(main),$(shell find $(source_dir) -type f -name "*$s"
 objects    = $(patsubst %$s,$(build_dir)/%$o,$(source))
 
 antlr_dir     = antlr
-antlr_source  = $(patsubst %,$(antlr_dir)/$(language)%$s,Lexer Parser)
+antlr_source  = $(patsubst %,$(antlr_dir)/$(language)%$s,Lexer Parser Listener BaseListener Visitor BaseVisitor)
 antlr_objects = $(patsubst %$s,$(build_dir)/%$o,$(antlr_source))
 
 runtime_dir     = runtime
@@ -23,15 +23,20 @@ runtime_source  = $(shell find $(runtime_dir) -type f -name "*$s")
 runtime_objects = $(patsubst %$s,$(build_dir)/%$o,$(runtime_source))
 
 ANTLR      = java -jar bin/antlr-4.7.2-complete.jar
-ANTLRFLAGS = -Dlanguage=Cpp -no-listener -no-visitor
+ANTLRFLAGS = -Dlanguage=Cpp -listener -visitor
 
-CPPDIRS = -I$(source_dir) -I$(antlr_dir) -I$(runtime_dir) -iquote $(runtime_dir)
+added_flags   := $(CXXFLAGS)
+warning_flags := -Wall -Wextra -Wno-attributes
+CPPDIRS       := -I$(source_dir) -I$(antlr_dir) -I$(runtime_dir) -iquote $(runtime_dir)
 
-override CXXFLAGS := -Wall -Wextra -Wno-attributes $(CPPDIRS) $(CXXFLAGS)
+override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags) #-fsanitize=address,undefined
 override LDLIBS   := $(LDLIBS)
 override LDFLAGS  := $(LDFLAGS)
 
-all: $(target)
+debug: $(target)
+
+release: CXXFLAGS = -O2 $(warning_flags) $(CPPDIRS) $(added_flags)
+release: cleaner $(target)
 
 $(target): $(main) $(antlr_objects) $(runtime_objects) $(objects)
 	@echo "  CXX   $@"

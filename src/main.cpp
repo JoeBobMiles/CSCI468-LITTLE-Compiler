@@ -1,6 +1,10 @@
 #include <antlr4-runtime.h>
 #include <TINYLexer.h>
 #include <TINYParser.h>
+#include <TINYVisitor.h>
+#include <TINYListener.h>
+#include <TINYBaseVisitor.h>
+#include <TINYBaseListener.h>
 
 #include <iostream>
 #include <fstream>
@@ -10,32 +14,36 @@ using namespace antlr4;
 using namespace std;
 using namespace std::string_literals;
 
+class OurListener : public TINYBaseListener {
+public:
+  virtual void enterExpr(TINYParser::ExprContext *ctx) override {
+      printf("expr: %s\n", ctx->getText().c_str());
+  }
+
+  virtual void enterEveryRule(antlr4::ParserRuleContext *ctx) override {
+      printf("%s\n", ctx->getText().c_str());
+  }
+  //virtual void exitEveryRule(antlr4::ParserRuleContext *ctx) override { }
+
+  virtual void visitTerminal(antlr4::tree::TerminalNode *node) override {
+      printf("> %s\n", node->toString().c_str());
+  }
+  //virtual void visitErrorNode(antlr4::tree::ErrorNode *node) override { }
+};
+
 int main(int argc, char **argv) {
-    string line;
-
-    /* NOTE: the 's' at the end of the string makes it an `std::string` because
-     * of `std::string_literals`. This causes `==` to compare strings rather
-     * than compare pointers. */
-    if (argc > 1 && "-"s == argv[1]) {
-        1;
-    }
     ifstream file(argc == 1? "example.tiny": argv[1]);
-
-    /* TODO: hide this stuff out behind a more C-like interface */
 
     if (file.is_open()) {
         ANTLRInputStream input(file);
         TINYLexer lexer(&input);
         CommonTokenStream tokenStream(&lexer);
-        // TINYParser parser(&tokenStream);
+        TINYParser parser(&tokenStream);
 
-        tokenStream.fill();
-        for (Token *token : tokenStream.getTokens()) {
-            cout << token->toString() << endl;
-        }
+        OurListener listener;
+        tree::ParseTree *tree = parser.expr();
+        tree::ParseTreeWalker::DEFAULT.walk(&listener, tree);
 
         file.close();
     }
-
-    /* God to I hate C++ */
 }
