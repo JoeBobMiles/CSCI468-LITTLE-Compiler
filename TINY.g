@@ -51,6 +51,7 @@ literal : INTLITERAL | FLOATLITERAL | STRINGLITERAL ;
 INTLITERAL : NUMBER+ ;
 FLOATLITERAL : NUMBER* '.' NUMBER+ ;
 STRINGLITERAL : '"' .*? ~'\\' '"' ;
+// NOTE: the `.*?` syntax means match any character, but as few as possible.
 
 COMMENT : '--' .*? '\r'? '\n' -> skip ;
 
