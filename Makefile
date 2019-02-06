@@ -11,7 +11,7 @@ main   = $(source_dir)/main$s
 target = $(build_dir)/$(program_name)$e
 
 source_dir = src
-source     = $(filter-out $(main),$(shell find $(source_dir) -type f -name "*$s"))
+source     = $(filter-out $(main),$(wildcard $(source_dir)/*$s))
 objects    = $(patsubst %$s,$(build_dir)/%$o,$(source))
 
 antlr_dir     = antlr
@@ -19,7 +19,7 @@ antlr_source  = $(patsubst %,$(antlr_dir)/$(language)%$s,Lexer Parser Listener B
 antlr_objects = $(patsubst %$s,$(build_dir)/%$o,$(antlr_source))
 
 runtime_dir     = runtime
-runtime_source  = $(shell find $(runtime_dir) -type f -name "*$s")
+runtime_source  = $(wildcard $(runtime_dir)/*$s) $(wildcard $(runtime_dir)/*/*$s) $(wildcard $(runtime_dir)/*/*/*$s)
 runtime_objects = $(patsubst %$s,$(build_dir)/%$o,$(runtime_source))
 
 ANTLR      = java -jar bin/antlr-4.7.2-complete.jar
