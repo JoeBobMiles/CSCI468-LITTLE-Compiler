@@ -4,7 +4,6 @@ build_dir    = build
 
 s = .cpp
 o = .o
-d = .mk
 e =
 
 main   = $(source_dir)/main$s
@@ -56,7 +55,7 @@ $(antlr_source): $(language).g4
 
 clean:
 	rm -f $(target)
-	[ -e $(build_dir)/$(source_dir) ] && find $(build_dir)/$(source_dir) -type f -not -name "*$d" -delete || true
+	rm -rf $(build_dir)/$(source_dir)
 
 cleaner:
 	rm -rf $(antlr_dir) $(build_dir)
