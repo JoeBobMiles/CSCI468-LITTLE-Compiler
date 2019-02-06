@@ -47,7 +47,8 @@ $(build_dir)/%$o: %$s
 	mkdir -p $(dir $@)
 	$(CXX) -c $(CXXFLAGS) -o $@ $^ $(LDLIBS) $(LDFLAGS)
 
-$(antlr_source): $(language).g4
+$(antlr_source): $(antlr_dir)
+$(antlr_dir): $(language).g4
 	@echo "  ANTLR $^"
 	$(ANTLR) $(ANTLRFLAGS) $< -o $(antlr_dir)
 
