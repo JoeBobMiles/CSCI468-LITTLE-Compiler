@@ -34,39 +34,39 @@ public:
 
 char *typeToString(size_t typeId) {
     switch (typeId) {
-    case TINYLexer::PROGRAM:       return "PROGRAM";
-    case TINYLexer::BEGIN:         return "BEGIN";
-    case TINYLexer::END:           return "END";
-    case TINYLexer::FUNCTION:      return "FUNCTION";
-    case TINYLexer::READ:          return "READ";
-    case TINYLexer::WRITE:         return "WRITE";
-    case TINYLexer::IF:            return "IF";
-    case TINYLexer::ELSE:          return "ELSE";
-    case TINYLexer::ENDIF:         return "ENDIF";
-    case TINYLexer::WHILE:         return "WHILE";
-    case TINYLexer::ENDWHILE:      return "ENDWHILE";
-    case TINYLexer::CONTINUE:      return "CONTINUE";
-    case TINYLexer::BREAK:         return "BREAK";
-    case TINYLexer::RETURN:        return "RETURN";
-    case TINYLexer::INT:           return "INT";
-    case TINYLexer::VOID:          return "VOID";
-    case TINYLexer::STRING:        return "STRING";
-    case TINYLexer::FLOAT:         return "FLOAT";
-    case TINYLexer::COLONEQ:       return "COLONEQ";
-    case TINYLexer::PLUS:          return "PLUS";
-    case TINYLexer::MINUS:         return "MINUS";
-    case TINYLexer::STAR:          return "STAR";
-    case TINYLexer::SLASH:         return "SLASH";
-    case TINYLexer::EQUAL:         return "EQUAL";
-    case TINYLexer::NOTEQ:         return "NOTEQ";
-    case TINYLexer::LT:            return "LT";
-    case TINYLexer::GT:            return "GT";
-    case TINYLexer::OPENPAREN:     return "OPENPAREN";
-    case TINYLexer::CLOSEPAREN:    return "CLOSEPAREN";
-    case TINYLexer::SEMICOLON:     return "SEMICOLON";
-    case TINYLexer::COMMA:         return "COMMA";
-    case TINYLexer::LTEQ:          return "LTEQ";
-    case TINYLexer::GTEQ:          return "GTEQ";
+    case TINYLexer::PROGRAM:       return "KEYWORD";
+    case TINYLexer::BEGIN:         return "KEYWORD";
+    case TINYLexer::END:           return "KEYWORD";
+    case TINYLexer::FUNCTION:      return "KEYWORD";
+    case TINYLexer::READ:          return "KEYWORD";
+    case TINYLexer::WRITE:         return "KEYWORD";
+    case TINYLexer::IF:            return "KEYWORD";
+    case TINYLexer::ELSE:          return "KEYWORD";
+    case TINYLexer::ENDIF:         return "KEYWORD";
+    case TINYLexer::WHILE:         return "KEYWORD";
+    case TINYLexer::ENDWHILE:      return "KEYWORD";
+    case TINYLexer::CONTINUE:      return "KEYWORD";
+    case TINYLexer::BREAK:         return "KEYWORD";
+    case TINYLexer::RETURN:        return "KEYWORD";
+    case TINYLexer::INT:           return "KEYWORD";
+    case TINYLexer::VOID:          return "KEYWORD";
+    case TINYLexer::STRING:        return "KEYWORD";
+    case TINYLexer::FLOAT:         return "KEYWORD";
+    case TINYLexer::COLONEQ:       return "OPERATOR";
+    case TINYLexer::PLUS:          return "OPERATOR";
+    case TINYLexer::MINUS:         return "OPERATOR";
+    case TINYLexer::STAR:          return "OPERATOR";
+    case TINYLexer::SLASH:         return "OPERATOR";
+    case TINYLexer::EQUAL:         return "OPERATOR";
+    case TINYLexer::NOTEQ:         return "OPERATOR";
+    case TINYLexer::LT:            return "OPERATOR";
+    case TINYLexer::GT:            return "OPERATOR";
+    case TINYLexer::OPENPAREN:     return "OPERATOR";
+    case TINYLexer::CLOSEPAREN:    return "OPERATOR";
+    case TINYLexer::SEMICOLON:     return "OPERATOR";
+    case TINYLexer::COMMA:         return "OPERATOR";
+    case TINYLexer::LTEQ:          return "OPERATOR";
+    case TINYLexer::GTEQ:          return "OPERATOR";
     case TINYLexer::IDENTIFIER:    return "IDENTIFIER";
     case TINYLexer::INTLITERAL:    return "INTLITERAL";
     case TINYLexer::FLOATLITERAL:  return "FLOATLITERAL";
@@ -94,8 +94,8 @@ int main(int argc, char **argv) {
             size_t type = token->getType();
             string text = token->getText();
 
-            printf("Type   %s\n", typeToString(type));
-            printf("Text   %s\n", text.c_str());
+            printf("Token Type: %s\n", typeToString(type));
+            printf("Value: %s\n", text.c_str());
         }
 #else /* step 2? */
         TINYParser parser(&tokenStream);
