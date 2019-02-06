@@ -1,12 +1,29 @@
 #!/bin/bash
 
-for file in $(ls ./tests/inputs/)
-do
-	filename=$(echo $file | sed -En 's/^(.*)\.micro/\1/p')
-	./build/test.exe ./tests/inputs/${filename}.micro | diff -b ./tests/outputs/${filename}.out -
+set -eu
 
-	if [[ $? -ne 0 ]]
-	then
-		echo "Failed test $filename"
-	fi
+failed=0
+program=${1:?Please provide the executable}
+
+for file in tests/inputs/*
+do
+    filename=${file##*/}
+    filename=${filename%.micro}
+
+    input=./tests/inputs/${filename}.micro
+    output=./tests/outputs/${filename}.out
+
+    if ! "$program" "$input" | diff -b "$output" -
+    then
+        (( ++failed ))
+        echo "Failed test $filename"
+    fi
 done
+
+if (( failed == 0 ))
+then
+    echo Success
+else
+    echo
+    echo "Failed $failed tests."
+fi
