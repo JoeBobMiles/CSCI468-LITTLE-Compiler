@@ -34,13 +34,11 @@ public:
 
 void bufferString(char *buffer, size_t size, char *string) {
     char *end = buffer + size - 1;
-    char *scur = string;
-    char *dcur = buffer;
 
     do {
-        *dcur = *scur;
+        *buffer = *string;
     }
-    while (*scur++ && dcur++ < end);
+    while (*string++ && buffer++ < end);
 
     *end = 0; /* force null terminator */
 }
@@ -84,8 +82,8 @@ int main(int argc, char **argv) {
 
             if (text == "<EOF>") break;
 
-            printf("Type   %lu, %s\n", type, typeToString(type));
-            printf("Text   %s\n", text.c_str());
+            printf("Token Type: %s\n", typeToString(type));
+            printf("Value: %s\n", text.c_str());
         }
 #else /* step 2? */
         TINYParser parser(&tokenStream);
