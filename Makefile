@@ -27,7 +27,7 @@ ANTLRFLAGS = -Dlanguage=Cpp -no-listener -no-visitor
 
 CPPDIRS = -I$(source_dir) -I$(antlr_dir) -I$(runtime_dir) -iquote $(runtime_dir)
 
-override CXXFLAGS := -Wall -Wextra $(CPPDIRS) $(CXXFLAGS)
+override CXXFLAGS := -Wall -Wextra -Wno-attributes $(CPPDIRS) $(CXXFLAGS)
 override LDLIBS   := $(LDLIBS)
 override LDFLAGS  := $(LDFLAGS)
 
@@ -43,9 +43,7 @@ $(build_dir)/%$o: %$s
 	mkdir -p $(dir $@)
 	$(CXX) -c $(CXXFLAGS) -o $@ $^ $(LDLIBS) $(LDFLAGS)
 
-$(antlr_source): $(antlr_dir)
-
-$(antlr_dir): $(language).g
+$(antlr_source): $(language).g
 	@echo "  ANTLR $^"
 	$(ANTLR) $(ANTLRFLAGS) $< -o $(antlr_dir)
 
