@@ -21,14 +21,14 @@ runtime_dir     = runtime
 runtime_source  = $(wildcard $(runtime_dir)/*$s) $(wildcard $(runtime_dir)/*/*$s) $(wildcard $(runtime_dir)/*/*/*$s)
 runtime_objects = $(patsubst %$s,$(build_dir)/%$o,$(runtime_source))
 
-ANTLR      = java -jar bin/antlr-4.7.2-complete.jar
+ANTLR      = java$e -jar bin/antlr-4.7.2-complete.jar
 ANTLRFLAGS = -Dlanguage=Cpp -listener -visitor
 
 added_flags   := $(CXXFLAGS)
 warning_flags := -Wall -Wextra -Wno-attributes -Wno-write-strings
 CPPDIRS       := -I$(source_dir) -I$(antlr_dir) -I$(runtime_dir) -iquote $(runtime_dir)
 
-override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags) #-fsanitize=address,undefined
+override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags) -DANTLR4CPP_STATIC #-fsanitize=address,undefined
 override LDLIBS   := $(LDLIBS)
 override LDFLAGS  := $(LDFLAGS)
 
