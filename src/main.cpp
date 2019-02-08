@@ -43,25 +43,37 @@ void bufferString(char *buffer, size_t size, char *string) {
     *end = 0; /* force null terminator */
 }
 
+#define TOKENS_FILE "antlr/TINY.tokens"
 char *typeToString(size_t typeId) {
+    static char buffer[0x100]; /* static so that we can return it */
     int found = 0;
-    static char buffer[0x100];
     size_t foundTypeId;
 
-    FILE *file = fopen("antlr/TINY.tokens", "r");
+    /* There wasn't an obvious way to do this using the Antlr4 API, so we
+     * decided to look it up out of the generated .tokens file. It's a bit
+     * wasteful to open the file every time, but it would take a bit of effort
+     * to, say, generate a lookup table that wasn't just as wasteful with
+     * space. It could be done, but this will suffice for now. */
 
-    for (;;) {
-        int ret = fscanf(file, "%[^=]=%lu\n", buffer, &foundTypeId);
-        found = (typeId == foundTypeId);
+    FILE *file = fopen(TOKENS_FILE, "r");
 
-        if (found || ret == -1) break;
+    if (file) {
+        for (;;) {
+            int ret = fscanf(file, "%[^=]=%lu\n", buffer, &foundTypeId);
+            found = (typeId == foundTypeId);
+
+            if (found || ret == -1) break;
+        }
+
+        if (!found) {
+            bufferString(buffer, sizeof buffer, "UNKNOWN");
+        }
+
+        fclose(file);
     }
-
-    if (!found) {
-        bufferString(buffer, sizeof buffer, "UNKNOWN");
+    else {
+        bufferString(buffer, sizeof buffer, "<FILE " TOKENS_FILE " NOT FOUND>");
     }
-
-    fclose(file);
 
     return buffer;
 }

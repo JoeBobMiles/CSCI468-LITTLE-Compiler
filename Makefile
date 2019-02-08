@@ -1,4 +1,4 @@
-program_name = test
+program_name = step1
 language     = TINY
 build_dir    = build
 
@@ -34,7 +34,7 @@ override LDFLAGS  := $(LDFLAGS)
 
 debug: $(target)
 
-release: CXXFLAGS = -O2 $(warning_flags) $(CPPDIRS) $(added_flags)
+release: CXXFLAGS = -O2 $(warning_flags) $(CPPDIRS) $(added_flags) -DANTLR4CPP_STATIC
 release: cleaner $(target)
 
 $(target): $(main) $(antlr_objects) $(runtime_objects) $(objects)
@@ -57,6 +57,7 @@ $(antlr_dir): $(language).g4
 clean:
 	rm -f $(target)
 	rm -rf $(build_dir)/$(source_dir)
+	rm -rf $(build_dir)/$(antlr_dir)
 
 cleaner:
 	rm -rf $(antlr_dir) $(build_dir)
