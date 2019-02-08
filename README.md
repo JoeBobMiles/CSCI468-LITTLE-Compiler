@@ -9,8 +9,14 @@ You will require to build this project:
 
 ## Running the Compiler Demo
 
-Run the Micro bash script in your terminal, passing the name of the file to
-compile:
+First build the project using GNU Make:
+
+```bash
+$ make cleaner # cleans up previous build
+$ make # recommend using the -j (for jobs) flag to increase build speed
+```
+
+To run the new build, now use the ./Micro script.
 
 ```bash
 $ ./Micro source.file
