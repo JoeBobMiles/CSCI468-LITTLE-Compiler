@@ -2,16 +2,17 @@
 
 set -eu
 
+step=step2
 failed=0
 program=${1:?Please provide the executable}
 
-for file in tests/inputs/*
+for file in tests/$step/inputs/*
 do
     filename=${file##*/}
     filename=${filename%.micro}
 
-    input=./tests/inputs/${filename}.micro
-    output=./tests/outputs/${filename}.out
+    input=./tests/$step/inputs/${filename}.micro
+    output=./tests/$step/outputs/${filename}.out
 
     if ! "$program" "$input" | diff -b "$output" -
     then

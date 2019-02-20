@@ -12,25 +12,26 @@
 using namespace antlr4;
 using namespace std;
 
-#if 0
 class OurListener : public TINYBaseListener {
 public:
-  virtual void enterFile(TINYParser::FileContext *ctx) override {
-      printf("file: %s\n\n", ctx->getText().c_str());
-  }
+  //virtual void enterFile(TINYParser::FileContext *ctx) override {
+  //    printf("file: %s\n\n", ctx->getText().c_str());
+  //}
 
 
   virtual void enterEveryRule(antlr4::ParserRuleContext *ctx) override {
-      printf("%s\n", ctx->getText().c_str());
+      if (ctx->exception) {
+          throw ctx->exception;
+      }
+      //printf("%s\n", ctx->getText().c_str());
   }
   //virtual void exitEveryRule(antlr4::ParserRuleContext *ctx) override { }
 
-  virtual void visitTerminal(antlr4::tree::TerminalNode *node) override {
-      printf("   %s\n", node->toString().c_str());
-  }
+  //virtual void visitTerminal(antlr4::tree::TerminalNode *node) override {
+  //    printf("   %s\n", node->toString().c_str());
+  //}
   //virtual void visitErrorNode(antlr4::tree::ErrorNode *node) override { }
 };
-#endif
 
 void bufferString(char *buffer, size_t size, char *string) {
     char *end = buffer + size - 1;
@@ -85,25 +86,17 @@ int main(int argc, char **argv) {
         ANTLRInputStream input(file);
         TINYLexer lexer(&input);
         CommonTokenStream tokenStream(&lexer);
-#if 1 /* step 1 */
-
-        tokenStream.fill();
-        for (Token *token : tokenStream.getTokens()) {
-            size_t type = token->getType();
-            string text = token->getText();
-
-            if (text == "<EOF>") break;
-
-            printf("Token Type: %s\n", typeToString(type));
-            printf("Value: %s\n", text.c_str());
-        }
-#else /* step 2? */
         TINYParser parser(&tokenStream);
 
-        OurListener listener;
-        tree::ParseTree *tree = parser.file();
-        tree::ParseTreeWalker::DEFAULT.walk(&listener, tree);
-#endif
+        try {
+            OurListener listener;
+            tree::ParseTree *tree = parser.file();
+            tree::ParseTreeWalker::DEFAULT.walk(&listener, tree);
+            printf("Accepted\n");
+        }
+        catch (const exception_ptr e) {
+            printf("Not accepted\n");
+        }
 
         file.close();
     }
