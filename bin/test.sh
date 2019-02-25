@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 set -eu
 
@@ -13,17 +13,11 @@ do
     input=./tests/$step/inputs/${filename}.micro
     output=./tests/$step/outputs/${filename}.out
 
-    if ! ./Micro.sh "$input" | diff -B -b -s "$output" -
+    if ! ./Micro.sh "$input" | diff -B -b "$output" -
     then
         (( ++failed ))
         #echo "Failed test $filename"
     fi
 done
 
-if (( failed == 0 ))
-then
-    echo Success
-else
-    echo
-    echo "Failed $failed tests."
-fi
+exit $failed
