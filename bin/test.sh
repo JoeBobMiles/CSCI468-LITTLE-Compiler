@@ -3,7 +3,6 @@
 set -eu
 
 failed=0
-program=${1:?Please provide the executable}
 
 for file in tests/inputs/*
 do
@@ -13,10 +12,10 @@ do
     input=./tests/inputs/${filename}.micro
     output=./tests/outputs/${filename}.out
 
-    if ! "$program" "$input" | diff -b "$output" -
+    if ! ./Micro.sh "$input" | diff -B -b -s "$output" -
     then
         (( ++failed ))
-        echo "Failed test $filename"
+        #echo "Failed test $filename"
     fi
 done
 

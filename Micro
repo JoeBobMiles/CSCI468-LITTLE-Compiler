@@ -1,3 +1,0 @@
-#!/bin/bash
-
-./build/step1 $1
