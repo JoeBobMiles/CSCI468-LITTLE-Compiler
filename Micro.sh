@@ -1,3 +1,3 @@
-#!/bin/bash
+#!/bin/sh
 
-./build/step1 $1 2>/dev/null
+./build/step2 $1 2>/dev/null
