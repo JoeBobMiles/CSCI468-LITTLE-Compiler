@@ -1,3 +1,4 @@
 #!/bin/sh
 
-./build/step2 $1 2>/dev/null
+step=$(sed -n '/^program_name/s/.*= *//p' Makefile)
+./build/$step $1 2>/dev/null

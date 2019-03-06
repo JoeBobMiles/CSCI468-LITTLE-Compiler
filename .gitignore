@@ -1,3 +1,5 @@
 /build
 /antlr
 /tags
+# ignore that pdf I'm keeping at the git root
+/*.pdf

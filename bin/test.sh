@@ -2,7 +2,7 @@
 
 set -eu
 
-step=step2
+step=$(sed -n '/^program_name/s/.*= *//p' Makefile)
 failed=0
 
 for file in tests/$step/inputs/*

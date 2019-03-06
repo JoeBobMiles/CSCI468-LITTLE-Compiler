@@ -1,4 +1,4 @@
-program_name = step2
+program_name = step3
 language     = TINY
 build_dir    = build
 
