@@ -24,17 +24,17 @@ runtime_objects = $(patsubst %$s,$(build_dir)/%$o,$(runtime_source))
 ANTLR      = java$e -jar bin/antlr-4.7.2-complete.jar
 ANTLRFLAGS = -Dlanguage=Cpp -listener -visitor
 
-added_flags   := $(CXXFLAGS)
-warning_flags := -Wall -Wextra -Wno-attributes -Wno-write-strings
+added_flags   := $(CXXFLAGS) -DANTLR4CPP_STATIC
+warning_flags := -Wall -Wextra -Wno-attributes -Wno-cast-qual -Wno-write-strings -Wno-unused-parameter -fpermissive
 CPPDIRS       := -I$(source_dir) -I$(antlr_dir) -I$(runtime_dir) -iquote $(runtime_dir)
 
-override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags) -DANTLR4CPP_STATIC #-fsanitize=address,undefined
+override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags)
 override LDLIBS   := $(LDLIBS)
 override LDFLAGS  := $(LDFLAGS)
 
 debug: $(target)
 
-release: CXXFLAGS = -O2 $(warning_flags) $(CPPDIRS) $(added_flags) -DANTLR4CPP_STATIC
+release: CXXFLAGS = -O2 $(warning_flags) $(CPPDIRS) $(added_flags)
 release: cleaner $(target)
 
 $(target): $(main) $(antlr_objects) $(runtime_objects) $(objects)

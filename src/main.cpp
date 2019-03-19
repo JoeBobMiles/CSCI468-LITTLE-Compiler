@@ -1,3 +1,7 @@
+#include "main.h"
+
+#include "symbol-table.h"
+
 #include <antlr4-runtime.h>
 #include <TINYLexer.h>
 #include <TINYParser.h>
@@ -6,78 +10,141 @@
 #include <TINYBaseVisitor.h>
 #include <TINYBaseListener.h>
 
+#include <iostream>
 #include <fstream>
 #include <string>
+#include <vector>
 
 using namespace antlr4;
 using namespace std;
 
+#define MAX_TABLES 32 /* 32 tables should be enough for anyone */
+
+/* Master list of all tables */
+size_t listCount = 0;
+SymbolTable tableList[MAX_TABLES];
+
+/* stack representing nesting, tables duplicated in tableList */
+size_t stackHead = 0;
+SymbolTable *tableStack[MAX_TABLES];
+
+static inline
+void openNewScope(string scopeName) {
+    assert(listCount < MAX_TABLES);
+
+    SymbolTable *table = tableList + listCount++;
+
+    initSymbolTable(table, scopeName, 16);
+
+    tableStack[stackHead++] = table;
+}
+
+static inline
+SymbolTable *getScope() {
+    assert(stackHead > 0);
+    return tableStack[stackHead - 1];
+}
+
+static inline
+void closeScope() {
+    assert(stackHead > 0);
+    --stackHead;
+}
+
+static const string blockString = "BLOCK ";
 class OurListener : public TINYBaseListener {
 public:
-  //virtual void enterFile(TINYParser::FileContext *ctx) override {
-  //    printf("file: %s\n\n", ctx->getText().c_str());
-  //}
+    int blockNumber = 0;
 
+    virtual void enterProgram(TINYParser::ProgramContext *ctx) override {
+        openNewScope("GLOBAL");
+    }
+    virtual void exitProgram(TINYParser::ProgramContext *ctx) override {
+        closeScope();
+    }
 
-  virtual void enterEveryRule(antlr4::ParserRuleContext *ctx) override {
-      if (ctx->exception) {
-          throw ctx->exception;
-      }
-      //printf("%s\n", ctx->getText().c_str());
-  }
-  //virtual void exitEveryRule(antlr4::ParserRuleContext *ctx) override { }
+    virtual void enterFuncDecl(TINYParser::FuncDeclContext *ctx) override {
+        openNewScope(ctx->id()->getText());
+    }
+    virtual void exitFuncDecl(TINYParser::FuncDeclContext *ctx) override {
+        closeScope();
+    }
 
-  //virtual void visitTerminal(antlr4::tree::TerminalNode *node) override {
-  //    printf("   %s\n", node->toString().c_str());
-  //}
-  //virtual void visitErrorNode(antlr4::tree::ErrorNode *node) override { }
+    virtual void enterIfStmt(TINYParser::IfStmtContext *ctx) override {
+        openNewScope(blockString + to_string(++blockNumber));
+    }
+    virtual void exitIfStmt(TINYParser::IfStmtContext *ctx) override {
+        closeScope();
+    }
+
+    virtual void enterElsePart(TINYParser::ElsePartContext *ctx) override {
+        openNewScope(blockString + to_string(++blockNumber));
+    }
+    virtual void exitElsePart(TINYParser::ElsePartContext *ctx) override {
+        closeScope();
+    }
+
+    virtual void enterWhileStmt(TINYParser::WhileStmtContext *ctx) override {
+        openNewScope(blockString + to_string(++blockNumber));
+    }
+    virtual void exitWhileStmt(TINYParser::WhileStmtContext *ctx) override {
+        closeScope();
+    }
+
+    virtual void enterVarDecl(TINYParser::VarDeclContext *ctx) override {
+        SymbolTable *table = getScope();
+        string type = ctx->varType()->getText();
+
+        TINYParser::IdListContext *idList = ctx->idList();
+        string idText = idList->id()->getText();
+        if (!addSymbol(table, idText, type)) {
+            cout << "DECLARATION ERROR " << idText;
+        }
+
+        TINYParser::IdTailContext *idTail = idList->idTail();
+        while (idTail && idTail->id()) {
+            idText = idTail->id()->getText();
+
+            if (!addSymbol(table, idText, type)) {
+                cout << "DECLARATION ERROR " << idText;
+            }
+
+            idTail = idTail->idTail();
+        }
+    }
+
+    virtual void enterStringDecl(TINYParser::StringDeclContext *ctx) override {
+        SymbolTable *table = getScope();
+        string id = ctx->id()->getText();
+        string type = ctx->STRING()->getText();
+        string value = ctx->str()->getText();
+
+        if (!addSymbol(table, id, type, value)) {
+            cout << "DECLARATION ERROR " << id;
+        }
+    }
+
+    virtual void enterParamDecl(TINYParser::ParamDeclContext *ctx) override {
+        SymbolTable *table = getScope();
+
+        string id = ctx->id()->getText();
+        string type = ctx->varType()->getText();
+
+        if (!addSymbol(table, id, type)) {
+            cout << "DECLARATION ERROR " << id;
+        }
+    }
+
+#if 1
+    virtual void enterEveryRule(antlr4::ParserRuleContext *ctx) override {
+        if (ctx->exception) {
+            /* TODO: indicate error */
+        }
+        //cout << ctx->getText() << '\n';
+    }
+    //virtual void exitEveryRule(antlr4::ParserRuleContext *ctx) override { }
+#endif
 };
-
-void bufferString(char *buffer, size_t size, char *string) {
-    char *end = buffer + size - 1;
-
-    do {
-        *buffer = *string;
-    }
-    while (*string++ && buffer++ < end);
-
-    *end = 0; /* force null terminator */
-}
-
-#define TOKENS_FILE "antlr/TINY.tokens"
-char *typeToString(size_t typeId) {
-    static char buffer[0x100]; /* static so that we can return it */
-    int found = 0;
-    size_t foundTypeId;
-
-    /* There wasn't an obvious way to do this using the Antlr4 API, so we
-     * decided to look it up out of the generated .tokens file. It's a bit
-     * wasteful to open the file every time, but it would take a bit of effort
-     * to, say, generate a lookup table that wasn't just as wasteful with
-     * space. It could be done, but this will suffice for now. */
-
-    FILE *file = fopen(TOKENS_FILE, "r");
-
-    if (file) {
-        for (;;) {
-            int ret = fscanf(file, "%[^=]=%lu\n", buffer, &foundTypeId);
-            found = (typeId == foundTypeId);
-
-            if (found || ret == -1) break;
-        }
-
-        if (!found) {
-            bufferString(buffer, sizeof buffer, "UNKNOWN");
-        }
-
-        fclose(file);
-    }
-    else {
-        bufferString(buffer, sizeof buffer, "<FILE " TOKENS_FILE " NOT FOUND>");
-    }
-
-    return buffer;
-}
 
 int main(int argc, char **argv) {
     ifstream file(argc == 1? "example.tiny": argv[1]);
@@ -88,16 +155,38 @@ int main(int argc, char **argv) {
         CommonTokenStream tokenStream(&lexer);
         TINYParser parser(&tokenStream);
 
-        try {
-            OurListener listener;
-            tree::ParseTree *tree = parser.file();
-            tree::ParseTreeWalker::DEFAULT.walk(&listener, tree);
-            printf("Accepted\n");
-        }
-        catch (const exception_ptr e) {
-            printf("Not accepted\n");
-        }
+        /* TODO: attach listener prior to parsing? */
+        OurListener listener;
+        tree::ParseTree *tree = parser.file();
+        tree::ParseTreeWalker::DEFAULT.walk(&listener, tree);
 
         file.close();
+    }
+
+    for (size_t listIndex = 0; listIndex < listCount; ++listIndex) {
+        SymbolTable *table = tableList + listIndex;
+
+        /* c++ style output is gross. Unfortunately, our hand has been forced,
+         * because it's infeasable to use c-style strings. It turns out
+         * string::c_str() returns a pointer to temporary memory, meaning that
+         * having more than one in a function call is a problem. We could deal
+         * with it, but I think it will cause too many inconveniences in the
+         * future */
+        cout << "Symbol table " << table->name << '\n';
+
+        for (size_t index = 0; index < table->size; ++index) {
+            SymbolEntry entry = table->data[index];
+
+            if (!entry.id.empty()) {
+                cout << "name " << entry.id;
+                cout << " type " << entry.type;
+                if (!entry.value.empty()) {
+                    cout << " value " << entry.value;
+                }
+                cout << '\n';
+            }
+        }
+
+        cout << '\n';
     }
 }
