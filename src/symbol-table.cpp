@@ -1,6 +1,8 @@
 #include "main.h"
 #include "symbol-table.h"
 
+#include <stdio.h>
+
 #include <string>
 
 static
@@ -33,6 +35,7 @@ void initSymbolTable(SymbolTable *table, string name, size_t size) {
     *table = (SymbolTable){
         .name = name,
         .data = new SymbolEntry[size],
+        .order = new size_t[size],
         .count = 0,
         .size = size,
     };
@@ -40,11 +43,16 @@ void initSymbolTable(SymbolTable *table, string name, size_t size) {
 
 void deinitSymbolTable(SymbolTable *table) {
     delete[] table->data;
+    delete[] table->order;
 }
 
 static
 bool _addSymbol(SymbolTable *table, string id, string type, string value) {
+    assert(table->count < table->size);
+
     size_t index = getIndex(table, id);
+    table->order[table->count++] = index;
+
     SymbolEntry *entry = table->data + index;
 
     if (entry->id.empty()) {
@@ -57,7 +65,7 @@ bool _addSymbol(SymbolTable *table, string id, string type, string value) {
         return true;
     }
     else {
-        return true;
+        return false;
     }
 }
 
@@ -68,13 +76,14 @@ bool addSymbol(SymbolTable *table, string id, string type, string value) {
         SymbolTable oldTable = *table;
         initSymbolTable(table, oldTable.name, oldTable.size << 1);
 
-        for (size_t i = 0; i < oldTable.size; ++i) {
-            SymbolEntry entry = oldTable.data[i];
+        for (size_t i = 0; i < oldTable.count; ++i) {
+            size_t index = oldTable.order[i];
+            SymbolEntry entry = oldTable.data[index];
 
-            if (!entry.id.empty()) {
-                if (!_addSymbol(table, entry.id, entry.type, entry.value)) {
-                    InvalidCodePath;
-                }
+            assert(!entry.id.empty());
+
+            if (!_addSymbol(table, entry.id, entry.type, entry.value)) {
+                InvalidCodePath;
             }
         }
 

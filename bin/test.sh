@@ -13,8 +13,6 @@ do
     input=./tests/$step/inputs/${filename}.micro
     output=./tests/$step/outputs/${filename}.out
 
-    echo
-    echo "$input"
     if ! ./Micro.sh "$input" | diff -B -b "$output" -
     then
         (( ++failed ))

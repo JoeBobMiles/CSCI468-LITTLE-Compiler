@@ -10,7 +10,8 @@
 #include <TINYBaseVisitor.h>
 #include <TINYBaseListener.h>
 
-#include <iostream>
+#include <stdio.h>
+
 #include <fstream>
 #include <string>
 #include <vector>
@@ -27,6 +28,8 @@ SymbolTable tableList[MAX_TABLES];
 /* stack representing nesting, tables duplicated in tableList */
 size_t stackHead = 0;
 SymbolTable *tableStack[MAX_TABLES];
+
+string firstError;
 
 static inline
 void openNewScope(string scopeName) {
@@ -78,10 +81,14 @@ public:
     }
 
     virtual void enterElsePart(TINYParser::ElsePartContext *ctx) override {
-        openNewScope(blockString + to_string(++blockNumber));
+        if (!ctx->empty()) {
+            openNewScope(blockString + to_string(++blockNumber));
+        }
     }
     virtual void exitElsePart(TINYParser::ElsePartContext *ctx) override {
-        closeScope();
+        if (!ctx->empty()) {
+            closeScope();
+        }
     }
 
     virtual void enterWhileStmt(TINYParser::WhileStmtContext *ctx) override {
@@ -97,16 +104,17 @@ public:
 
         TINYParser::IdListContext *idList = ctx->idList();
         string idText = idList->id()->getText();
-        if (!addSymbol(table, idText, type)) {
-            cout << "DECLARATION ERROR " << idText;
+
+        if (!addSymbol(table, idText, type) && firstError.empty()) {
+            firstError = idText;
         }
 
         TINYParser::IdTailContext *idTail = idList->idTail();
         while (idTail && idTail->id()) {
             idText = idTail->id()->getText();
 
-            if (!addSymbol(table, idText, type)) {
-                cout << "DECLARATION ERROR " << idText;
+            if (!addSymbol(table, idText, type) && firstError.empty()) {
+                firstError = idText;
             }
 
             idTail = idTail->idTail();
@@ -119,8 +127,8 @@ public:
         string type = ctx->STRING()->getText();
         string value = ctx->str()->getText();
 
-        if (!addSymbol(table, id, type, value)) {
-            cout << "DECLARATION ERROR " << id;
+        if (!addSymbol(table, id, type, value) && firstError.empty()) {
+            firstError = id;
         }
     }
 
@@ -130,17 +138,18 @@ public:
         string id = ctx->id()->getText();
         string type = ctx->varType()->getText();
 
-        if (!addSymbol(table, id, type)) {
-            cout << "DECLARATION ERROR " << id;
+        if (!addSymbol(table, id, type) && firstError.empty()) {
+            firstError = id;
         }
     }
 
 #if 1
     virtual void enterEveryRule(antlr4::ParserRuleContext *ctx) override {
         if (ctx->exception) {
-            /* TODO: indicate error */
+            /* TODO: indicate error without dieing */
+            throw ctx->exception;
         }
-        //cout << ctx->getText() << '\n';
+        //printf("%s\n", ctx->getText().c_str());
     }
     //virtual void exitEveryRule(antlr4::ParserRuleContext *ctx) override { }
 #endif
@@ -163,30 +172,33 @@ int main(int argc, char **argv) {
         file.close();
     }
 
-    for (size_t listIndex = 0; listIndex < listCount; ++listIndex) {
-        SymbolTable *table = tableList + listIndex;
+    if (firstError.empty()) {
+        for (size_t listIndex = 0; listIndex < listCount; ++listIndex) {
+            SymbolTable *table = tableList + listIndex;
 
-        /* c++ style output is gross. Unfortunately, our hand has been forced,
-         * because it's infeasable to use c-style strings. It turns out
-         * string::c_str() returns a pointer to temporary memory, meaning that
-         * having more than one in a function call is a problem. We could deal
-         * with it, but I think it will cause too many inconveniences in the
-         * future */
-        cout << "Symbol table " << table->name << '\n';
+            printf("Symbol table %s\n", table->name.c_str());
 
-        for (size_t index = 0; index < table->size; ++index) {
-            SymbolEntry entry = table->data[index];
+            for (size_t i = 0; i < table->count; ++i) {
+                size_t index = table->order[i];
+                SymbolEntry entry = table->data[index];
 
-            if (!entry.id.empty()) {
-                cout << "name " << entry.id;
-                cout << " type " << entry.type;
-                if (!entry.value.empty()) {
-                    cout << " value " << entry.value;
+                if (!entry.id.empty()) {
+                    printf("name %s", entry.id.c_str());
+                    printf(" type %s", entry.type.c_str());
+                    if (!entry.value.empty()) {
+                        printf(" value %s", entry.value.c_str());
+                    }
+                    printf("\n");
                 }
-                cout << '\n';
             }
-        }
 
-        cout << '\n';
+            printf("\n");
+
+            /* free all of our stuff */
+            deinitSymbolTable(table);
+        }
+    }
+    else {
+        printf("DECLARATION ERROR %s\n", firstError.c_str());
     }
 }

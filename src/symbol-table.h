@@ -14,6 +14,7 @@ struct SymbolEntry {
 struct SymbolTable {
     string name;
     SymbolEntry *data;
+    size_t *order;
     size_t count;
     size_t size; /* Must be a power of 2 */
 };
