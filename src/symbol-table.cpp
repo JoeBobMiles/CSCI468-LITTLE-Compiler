@@ -1,19 +1,18 @@
 #include "main.h"
 #include "symbol-table.h"
 
-#include <stdio.h>
-
-#include <string>
+#include <cstdio>
+#include <cstring>
 
 static
-size_t getIndex(SymbolTable *table, string id) {
+size_t getIndex(SymbolTable *table, cchar *id) {
     /* hash algorithm from http://www.cse.yorku.ca/~oz/hash.html */
 
     char c;
-    const char *cur = id.data();
+    cchar *cur = id;
     size_t hash = 5381;
     while ((c = *cur++)) {
-        hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
+        hash = (33 * hash) + c;
     }
 
     assert(table->count < table->size);
@@ -22,32 +21,34 @@ size_t getIndex(SymbolTable *table, string id) {
 
     SymbolEntry *data = table->data;
     size_t index = hash & (table->size - 1); /* truncate to range */
-    while (!data[index].id.empty() && data[index].id != id) {
+    while (data[index].id && strcmp(data[index].id, id) != 0) {
         index = (index + 1) & (table->size - 1);
     }
 
     return index;
 }
 
-void initSymbolTable(SymbolTable *table, string name, size_t size) {
+void initSymbolTable(SymbolTable *table, cchar *name, size_t size) {
     assert(size && (size & (size - 1)) == 0); /* check for power of 2 */
 
     *table = (SymbolTable){
         .name = name,
-        .data = new SymbolEntry[size],
-        .order = new size_t[size],
+        .data = (SymbolEntry *)malloc(size * sizeof *table->data),
+        .order = (size_t *)malloc(size * sizeof *table->order),
         .count = 0,
         .size = size,
     };
+
+    memset(table->data, 0, size * sizeof *table->data);
 }
 
 void deinitSymbolTable(SymbolTable *table) {
-    delete[] table->data;
-    delete[] table->order;
+    free((void *)table->data);
+    free((void *)table->order);
 }
 
 static
-bool _addSymbol(SymbolTable *table, string id, string type, string value) {
+bool _addSymbol(SymbolTable *table, cchar *id, cchar *type, cchar *value) {
     assert(table->count < table->size);
 
     size_t index = getIndex(table, id);
@@ -55,7 +56,7 @@ bool _addSymbol(SymbolTable *table, string id, string type, string value) {
 
     SymbolEntry *entry = table->data + index;
 
-    if (entry->id.empty()) {
+    if (!entry->id) {
         *entry = (SymbolEntry){
             .id = id,
             .type = type,
@@ -69,7 +70,7 @@ bool _addSymbol(SymbolTable *table, string id, string type, string value) {
     }
 }
 
-bool addSymbol(SymbolTable *table, string id, string type, string value) {
+bool addSymbol(SymbolTable *table, cchar *id, cchar *type, cchar *value) {
     if (4*table->count > 3*table->size) {
         /* keep table at at most 3/4 capacity */
 
@@ -80,7 +81,7 @@ bool addSymbol(SymbolTable *table, string id, string type, string value) {
             size_t index = oldTable.order[i];
             SymbolEntry entry = oldTable.data[index];
 
-            assert(!entry.id.empty());
+            assert(entry.id);
 
             if (!_addSymbol(table, entry.id, entry.type, entry.value)) {
                 InvalidCodePath;
@@ -93,7 +94,7 @@ bool addSymbol(SymbolTable *table, string id, string type, string value) {
     return _addSymbol(table, id, type, value);
 }
 
-SymbolEntry getSymbol(SymbolTable *table, string id) {
+SymbolEntry getSymbol(SymbolTable *table, cchar *id) {
     size_t index = getIndex(table, id);
     SymbolEntry entry = table->data[index];
     return entry;

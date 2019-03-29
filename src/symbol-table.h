@@ -1,28 +1,26 @@
 #ifndef symbol_table_h
 #define symbol_table_h
 
-#include <string>
-
-using namespace std;
+#include "main.h"
 
 struct SymbolEntry {
-    string id;
-    string type;
-    string value;
+    cchar *id;
+    cchar *type;
+    cchar *value;
 };
 
 struct SymbolTable {
-    string name;
+    cchar *name;
     SymbolEntry *data;
     size_t *order;
     size_t count;
     size_t size; /* Must be a power of 2 */
 };
 
-void initSymbolTable(SymbolTable *table, string name, size_t size);
+void initSymbolTable(SymbolTable *table, cchar *name, size_t size);
 void deinitSymbolTable(SymbolTable *table);
 
-bool addSymbol(SymbolTable *table, string id, string type, string value = "");
-SymbolEntry getSymbol(SymbolTable *table, string id);
+bool addSymbol(SymbolTable *table, cchar *id, cchar *type, cchar *value = 0);
+SymbolEntry getSymbol(SymbolTable *table, cchar *id);
 
 #endif

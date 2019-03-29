@@ -1,5 +1,9 @@
 #include "main.h"
 
+/* WARNING:
+ * we're leaking strings!
+ */
+
 #include "symbol-table.h"
 
 #include <antlr4-runtime.h>
@@ -10,11 +14,11 @@
 #include <TINYBaseVisitor.h>
 #include <TINYBaseListener.h>
 
-#include <stdio.h>
+#include <cstdio>
+#include <cstring>
 
 #include <fstream>
 #include <string>
-#include <vector>
 
 using namespace antlr4;
 using namespace std;
@@ -32,7 +36,7 @@ SymbolTable *tableStack[MAX_TABLES];
 string firstError;
 
 static inline
-void openNewScope(string scopeName) {
+void openNewScope(cchar *scopeName) {
     assert(listCount < MAX_TABLES);
 
     SymbolTable *table = tableList + listCount++;
@@ -40,6 +44,11 @@ void openNewScope(string scopeName) {
     initSymbolTable(table, scopeName, 16);
 
     tableStack[stackHead++] = table;
+}
+
+static inline
+void openNewScope(string scopeName) {
+    openNewScope(strdup(scopeName.c_str()));
 }
 
 static inline
@@ -60,7 +69,7 @@ public:
     int blockNumber = 0;
 
     virtual void enterProgram(TINYParser::ProgramContext *ctx) override {
-        openNewScope("GLOBAL");
+        openNewScope(strdup("GLOBAL"));
     }
     virtual void exitProgram(TINYParser::ProgramContext *ctx) override {
         closeScope();
@@ -100,21 +109,21 @@ public:
 
     virtual void enterVarDecl(TINYParser::VarDeclContext *ctx) override {
         SymbolTable *table = getScope();
-        string type = ctx->varType()->getText();
+        cchar *type = strdup(ctx->varType()->getText().c_str());
 
         TINYParser::IdListContext *idList = ctx->idList();
-        string idText = idList->id()->getText();
+        cchar *id = strdup(idList->id()->getText().c_str());
 
-        if (!addSymbol(table, idText, type) && firstError.empty()) {
-            firstError = idText;
+        if (!addSymbol(table, id, type) && firstError.empty()) {
+            firstError = string(id);
         }
 
         TINYParser::IdTailContext *idTail = idList->idTail();
         while (idTail && idTail->id()) {
-            idText = idTail->id()->getText();
+            id = strdup(idTail->id()->getText().c_str());
 
-            if (!addSymbol(table, idText, type) && firstError.empty()) {
-                firstError = idText;
+            if (!addSymbol(table, id, strdup(type)) && firstError.empty()) {
+                firstError = string(id);
             }
 
             idTail = idTail->idTail();
@@ -123,23 +132,23 @@ public:
 
     virtual void enterStringDecl(TINYParser::StringDeclContext *ctx) override {
         SymbolTable *table = getScope();
-        string id = ctx->id()->getText();
-        string type = ctx->STRING()->getText();
-        string value = ctx->str()->getText();
+        cchar *id = strdup(ctx->id()->getText().c_str());
+        cchar *type = strdup(ctx->STRING()->getText().c_str());
+        cchar *value = strdup(ctx->str()->getText().c_str());
 
         if (!addSymbol(table, id, type, value) && firstError.empty()) {
-            firstError = id;
+            firstError = string(id);
         }
     }
 
     virtual void enterParamDecl(TINYParser::ParamDeclContext *ctx) override {
         SymbolTable *table = getScope();
 
-        string id = ctx->id()->getText();
-        string type = ctx->varType()->getText();
+        cchar *id = strdup(ctx->id()->getText().c_str());
+        cchar *type = strdup(ctx->varType()->getText().c_str());
 
         if (!addSymbol(table, id, type) && firstError.empty()) {
-            firstError = id;
+            firstError = string(id);
         }
     }
 
@@ -176,17 +185,16 @@ int main(int argc, char **argv) {
         for (size_t listIndex = 0; listIndex < listCount; ++listIndex) {
             SymbolTable *table = tableList + listIndex;
 
-            printf("Symbol table %s\n", table->name.c_str());
+            printf("Symbol table %s\n", table->name);
 
             for (size_t i = 0; i < table->count; ++i) {
                 size_t index = table->order[i];
                 SymbolEntry entry = table->data[index];
 
-                if (!entry.id.empty()) {
-                    printf("name %s", entry.id.c_str());
-                    printf(" type %s", entry.type.c_str());
-                    if (!entry.value.empty()) {
-                        printf(" value %s", entry.value.c_str());
+                if (entry.id) {
+                    printf("name %s type %s", entry.id, entry.type);
+                    if (entry.value) {
+                        printf(" value %s", entry.value);
                     }
                     printf("\n");
                 }

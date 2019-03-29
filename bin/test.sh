@@ -16,7 +16,7 @@ do
     if ! ./Micro.sh "$input" | diff -B -b "$output" -
     then
         (( ++failed ))
-        #echo "Failed test $filename"
+        echo "Failed test $filename"
     fi
 done
 
