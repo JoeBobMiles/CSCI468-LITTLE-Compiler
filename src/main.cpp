@@ -1,10 +1,7 @@
 #include "main.h"
 
-/* WARNING:
- * we're leaking strings!
- */
-
 #include "symbol-table.h"
+#include "strings.h"
 
 #include <antlr4-runtime.h>
 #include <TINYLexer.h>
@@ -15,7 +12,7 @@
 #include <TINYBaseListener.h>
 
 #include <cstdio>
-#include <cstring>
+//#include <cstring>
 
 #include <fstream>
 #include <string>
@@ -48,7 +45,7 @@ void openNewScope(cchar *scopeName) {
 
 static inline
 void openNewScope(string scopeName) {
-    openNewScope(strdup(scopeName.c_str()));
+    openNewScope(saveString(scopeName.c_str()));
 }
 
 static inline
@@ -69,7 +66,7 @@ public:
     int blockNumber = 0;
 
     virtual void enterProgram(TINYParser::ProgramContext *ctx) override {
-        openNewScope(strdup("GLOBAL"));
+        openNewScope(saveString("GLOBAL"));
     }
     virtual void exitProgram(TINYParser::ProgramContext *ctx) override {
         closeScope();
@@ -109,10 +106,10 @@ public:
 
     virtual void enterVarDecl(TINYParser::VarDeclContext *ctx) override {
         SymbolTable *table = getScope();
-        cchar *type = strdup(ctx->varType()->getText().c_str());
+        char *type = saveString(ctx->varType()->getText().c_str());
 
         TINYParser::IdListContext *idList = ctx->idList();
-        cchar *id = strdup(idList->id()->getText().c_str());
+        char *id = saveString(idList->id()->getText().c_str());
 
         if (!addSymbol(table, id, type) && firstError.empty()) {
             firstError = string(id);
@@ -120,9 +117,9 @@ public:
 
         TINYParser::IdTailContext *idTail = idList->idTail();
         while (idTail && idTail->id()) {
-            id = strdup(idTail->id()->getText().c_str());
+            id = saveString(idTail->id()->getText().c_str());
 
-            if (!addSymbol(table, id, strdup(type)) && firstError.empty()) {
+            if (!addSymbol(table, id, saveString(type)) && firstError.empty()) {
                 firstError = string(id);
             }
 
@@ -132,9 +129,9 @@ public:
 
     virtual void enterStringDecl(TINYParser::StringDeclContext *ctx) override {
         SymbolTable *table = getScope();
-        cchar *id = strdup(ctx->id()->getText().c_str());
-        cchar *type = strdup(ctx->STRING()->getText().c_str());
-        cchar *value = strdup(ctx->str()->getText().c_str());
+        char *id = saveString(ctx->id()->getText().c_str());
+        char *type = saveString(ctx->STRING()->getText().c_str());
+        char *value = saveString(ctx->str()->getText().c_str());
 
         if (!addSymbol(table, id, type, value) && firstError.empty()) {
             firstError = string(id);
@@ -144,8 +141,8 @@ public:
     virtual void enterParamDecl(TINYParser::ParamDeclContext *ctx) override {
         SymbolTable *table = getScope();
 
-        cchar *id = strdup(ctx->id()->getText().c_str());
-        cchar *type = strdup(ctx->varType()->getText().c_str());
+        char *id = saveString(ctx->id()->getText().c_str());
+        char *type = saveString(ctx->varType()->getText().c_str());
 
         if (!addSymbol(table, id, type) && firstError.empty()) {
             firstError = string(id);
@@ -209,4 +206,6 @@ int main(int argc, char **argv) {
     else {
         printf("DECLARATION ERROR %s\n", firstError.c_str());
     }
+
+    deinitStringTable(globalStringTable);
 }

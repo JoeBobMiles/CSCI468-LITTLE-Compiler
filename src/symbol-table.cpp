@@ -1,8 +1,9 @@
 #include "main.h"
 #include "symbol-table.h"
 
+#include "strings.h"
+
 #include <cstdio>
-#include <cstring>
 
 static
 size_t getIndex(SymbolTable *table, cchar *id) {
@@ -21,7 +22,7 @@ size_t getIndex(SymbolTable *table, cchar *id) {
 
     SymbolEntry *data = table->data;
     size_t index = hash & (table->size - 1); /* truncate to range */
-    while (data[index].id && strcmp(data[index].id, id) != 0) {
+    while (data[index].id && !stringsAreEqual(data[index].id, id)) {
         index = (index + 1) & (table->size - 1);
     }
 
@@ -39,7 +40,7 @@ void initSymbolTable(SymbolTable *table, cchar *name, size_t size) {
         .size = size,
     };
 
-    memset(table->data, 0, size * sizeof *table->data);
+    zeroMemory((char *)table->data, size * sizeof *table->data);
 }
 
 void deinitSymbolTable(SymbolTable *table) {
