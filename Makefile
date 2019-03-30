@@ -1,4 +1,4 @@
-program_name = step3
+program_name = step4
 language     = TINY
 build_dir    = build
 
@@ -6,8 +6,9 @@ s = .cpp
 o = .o
 e =
 
-main   = $(source_dir)/main$s
-target = $(build_dir)/$(program_name)$e
+main     = $(source_dir)/main$s
+target   = $(build_dir)/$(program_name)$e
+emulator = $(build_dir)/emulator$e
 
 source_dir = src
 source     = $(filter-out $(main),$(wildcard $(source_dir)/*$s))
@@ -32,10 +33,15 @@ override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags)
 override LDLIBS   := $(LDLIBS)
 override LDFLAGS  := $(LDFLAGS)
 
-debug: $(target)
+debug: $(target) $(emulator)
 
 release: CXXFLAGS = -O2 $(warning_flags) $(CPPDIRS) $(added_flags)
-release: cleaner $(target)
+release: cleaner $(target) $(emulator)
+
+$(emulator): $(source_dir)/emulator/emulator.cpp
+	@echo "  CXX   $@"
+	mkdir -p $(dir $@)
+	$(CXX) -O2 -o $@ $^
 
 $(target): $(main) $(antlr_objects) $(runtime_objects) $(objects)
 	@echo "  CXX   $@"
