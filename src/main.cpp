@@ -1,7 +1,8 @@
 #include "main.h"
 
-#include "symbol-table.h"
 #include "strings.h"
+#include "symbol-table.h"
+#include "ast.h"
 
 #include <antlr4-runtime.h>
 #include <TINYLexer.h>
@@ -19,107 +20,102 @@
 using namespace antlr4;
 using namespace std;
 
-#define MAX_TABLES 32 /* 32 tables should be enough for anyone */
-
-/* Master list of all tables */
-size_t listCount = 0;
-SymbolTable tableList[MAX_TABLES];
-
-/* stack representing nesting, tables duplicated in tableList */
-size_t stackHead = 0;
-SymbolTable *tableStack[MAX_TABLES];
-
-string firstError;
-
 static inline
-void openNewScope(cchar *scopeName) {
-    assert(listCount < MAX_TABLES);
+void openNewScope(Program *program, cchar *scopeName) {
+    assert(program->listCount < MAX_TABLES);
 
-    SymbolTable *table = tableList + listCount++;
+    SymbolTable *table = program->tableList + program->listCount++;
 
-    initSymbolTable(table, scopeName, 16);
+    initSymbolTable(table, saveString(scopeName), 16);
 
-    tableStack[stackHead++] = table;
+    program->tableStack[program->stackHead++] = table;
 }
 
 static inline
-void openNewScope(string scopeName) {
-    openNewScope(saveString(scopeName.c_str()));
+void openNewScope(Program *program, string scopeName) {
+    openNewScope(program, scopeName.c_str());
 }
 
 static inline
-SymbolTable *getScope() {
-    assert(stackHead > 0);
-    return tableStack[stackHead - 1];
+SymbolTable *getScope(Program *program) {
+    assert(program->stackHead > 0);
+    return program->tableStack[program->stackHead - 1];
 }
 
 static inline
-void closeScope() {
-    assert(stackHead > 0);
-    --stackHead;
+void closeScope(Program *program) {
+    assert(program->stackHead > 0);
+    --program->stackHead;
 }
 
 static const string blockString = "BLOCK ";
 class OurListener : public TINYBaseListener {
 public:
     int blockNumber = 0;
+    Program program = {
+        .listCount = 0,
+        .stackHead = 0,
+        .firstError = 0,
+        .tableList = {},
+        .tableStack = {},
+    };
 
     virtual void enterProgram(TINYParser::ProgramContext *ctx) override {
-        openNewScope(saveString("GLOBAL"));
+        openNewScope(&program, "GLOBAL");
     }
     virtual void exitProgram(TINYParser::ProgramContext *ctx) override {
-        closeScope();
+        closeScope(&program);
     }
 
     virtual void enterFuncDecl(TINYParser::FuncDeclContext *ctx) override {
-        openNewScope(ctx->id()->getText());
+        openNewScope(&program, ctx->id()->getText());
     }
     virtual void exitFuncDecl(TINYParser::FuncDeclContext *ctx) override {
-        closeScope();
+        closeScope(&program);
     }
 
     virtual void enterIfStmt(TINYParser::IfStmtContext *ctx) override {
-        openNewScope(blockString + to_string(++blockNumber));
+        openNewScope(&program, blockString + to_string(++blockNumber));
     }
     virtual void exitIfStmt(TINYParser::IfStmtContext *ctx) override {
-        closeScope();
+        closeScope(&program);
     }
 
     virtual void enterElsePart(TINYParser::ElsePartContext *ctx) override {
         if (!ctx->empty()) {
-            openNewScope(blockString + to_string(++blockNumber));
+            openNewScope(&program, blockString + to_string(++blockNumber));
         }
     }
     virtual void exitElsePart(TINYParser::ElsePartContext *ctx) override {
         if (!ctx->empty()) {
-            closeScope();
+            closeScope(&program);
         }
     }
 
     virtual void enterWhileStmt(TINYParser::WhileStmtContext *ctx) override {
-        openNewScope(blockString + to_string(++blockNumber));
+        openNewScope(&program, blockString + to_string(++blockNumber));
     }
     virtual void exitWhileStmt(TINYParser::WhileStmtContext *ctx) override {
-        closeScope();
+        closeScope(&program);
     }
 
     virtual void enterVarDecl(TINYParser::VarDeclContext *ctx) override {
-        SymbolTable *table = getScope();
+        SymbolTable *table = getScope(&program);
         char *type = saveString(ctx->varType()->getText().c_str());
 
         TINYParser::IdListContext *idList = ctx->idList();
         char *id = saveString(idList->id()->getText().c_str());
 
-        if (!addSymbol(table, id, type) && firstError.empty()) {
-            firstError = string(id);
+        if (!addSymbol(table, id, type) && !program.firstError) {
+            program.firstError = id;
         }
 
         TINYParser::IdTailContext *idTail = idList->idTail();
         while (idTail && idTail->id()) {
             id = saveString(idTail->id()->getText().c_str());
 
-            if (!addSymbol(table, id, saveString(type)) && firstError.empty()) {
-                firstError = string(id);
+            if (!addSymbol(table, id, saveString(type)) && !program.firstError) {
+                program.firstError = id;
             }
 
             idTail = idTail->idTail();
@@ -127,24 +123,24 @@ public:
     }
 
     virtual void enterStringDecl(TINYParser::StringDeclContext *ctx) override {
-        SymbolTable *table = getScope();
+        SymbolTable *table = getScope(&program);
         char *id = saveString(ctx->id()->getText().c_str());
         char *type = saveString(ctx->STRING()->getText().c_str());
         char *value = saveString(ctx->str()->getText().c_str());
 
-        if (!addSymbol(table, id, type, value) && firstError.empty()) {
-            firstError = string(id);
+        if (!addSymbol(table, id, type, value) && !program.firstError) {
+            program.firstError = id;
         }
     }
 
     virtual void enterParamDecl(TINYParser::ParamDeclContext *ctx) override {
-        SymbolTable *table = getScope();
+        SymbolTable *table = getScope(&program);
 
         char *id = saveString(ctx->id()->getText().c_str());
         char *type = saveString(ctx->varType()->getText().c_str());
 
-        if (!addSymbol(table, id, type) && firstError.empty()) {
-            firstError = string(id);
+        if (!addSymbol(table, id, type) && !program.firstError) {
+            program.firstError = id;
         }
     }
 
@@ -169,41 +165,47 @@ int main(int argc, char **argv) {
         CommonTokenStream tokenStream(&lexer);
         TINYParser parser(&tokenStream);
 
-        /* TODO: attach listener prior to parsing? */
-        OurListener listener;
+        OurListener listener; /* TODO: ditch the listener */
         tree::ParseTree *tree = parser.file();
         tree::ParseTreeWalker::DEFAULT.walk(&listener, tree);
 
         file.close();
-    }
 
-    if (firstError.empty()) {
-        for (size_t listIndex = 0; listIndex < listCount; ++listIndex) {
-            SymbolTable *table = tableList + listIndex;
+        /* copy some things out for convenience */
+        cchar *firstError = listener.program.firstError;
+        size_t listCount = listener.program.listCount;
+        SymbolTable *tableList = listener.program.tableList;
 
-            printf("Symbol table %s\n", table->name);
+        if (!firstError) {
+            for (size_t listIndex = 0; listIndex < listCount; ++listIndex) {
+                SymbolTable *table = tableList + listIndex;
 
-            for (size_t i = 0; i < table->count; ++i) {
-                size_t index = table->order[i];
-                SymbolEntry entry = table->data[index];
+                printf("Symbol table %s\n", table->name);
 
-                if (entry.id) {
-                    printf("name %s type %s", entry.id, entry.type);
-                    if (entry.value) {
-                        printf(" value %s", entry.value);
+                for (size_t i = 0; i < table->count; ++i) {
+                    size_t index = table->order[i];
+                    SymbolEntry entry = table->data[index];
+
+                    if (entry.id) {
+                        printf("name %s type %s", entry.id, entry.type);
+                        if (entry.value) {
+                            printf(" value %s", entry.value);
+                        }
+                        printf("\n");
                     }
-                    printf("\n");
                 }
+
+                printf("\n");
             }
-
-            printf("\n");
-
-            /* free all of our stuff */
-            deinitSymbolTable(table);
         }
-    }
-    else {
-        printf("DECLARATION ERROR %s\n", firstError.c_str());
+        else {
+            printf("DECLARATION ERROR %s\n", firstError);
+        }
+
+        /* free all of our stuff */
+        for (size_t listIndex = 0; listIndex < listCount; ++listIndex) {
+            deinitSymbolTable(tableList + listIndex);
+        }
     }
 
     deinitStringTable(globalStringTable);

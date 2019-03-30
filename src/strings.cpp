@@ -57,24 +57,24 @@ char *saveString(cchar *str) {
     assert(size < PAGESIZE);
 
     /* TODO: save to other than global? */
-    StringTable **pagePtr = &globalStringTable;
+    StringTable **page = &globalStringTable;
 
     for (;;) {
-        if (!*pagePtr) {
-            *pagePtr = (StringTable *)malloc(sizeof **pagePtr);
-            initStringTable(*pagePtr);
+        if (!*page) {
+            *page = (StringTable *)malloc(sizeof **page);
+            initStringTable(*page);
         }
 
-        if (size < (**pagePtr).size - (**pagePtr).used) break;
+        if (size < (**page).size - (**page).used) break;
 
-        pagePtr = &(**pagePtr).nextPage;
+        page = &(**page).nextPage;
     }
 
-    char *strLoc = (**pagePtr).data + (**pagePtr).used;
+    char *strLoc = (**page).data + (**page).used;
     copyString(strLoc, str);
-    (**pagePtr).used += size;
+    (**page).used += size;
 
-    assert((**pagePtr).size >= (**pagePtr).used);
+    assert((**page).size >= (**page).used);
 
     return strLoc;
 }

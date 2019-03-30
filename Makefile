@@ -29,7 +29,7 @@ added_flags   := $(CXXFLAGS) -DANTLR4CPP_STATIC
 warning_flags := -Wall -Wextra -Wno-attributes -Wno-cast-qual -Wno-write-strings -Wno-unused-parameter -fpermissive
 CPPDIRS       := -I$(source_dir) -I$(antlr_dir) -I$(runtime_dir) -iquote $(runtime_dir)
 
-override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags)
+override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags) -fsanitize=address
 override LDLIBS   := $(LDLIBS)
 override LDFLAGS  := $(LDFLAGS)
 
