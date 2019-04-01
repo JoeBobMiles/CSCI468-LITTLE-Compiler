@@ -108,7 +108,7 @@ SymbolEntry *addVar(SymbolTable *table, cchar *id, cchar type, cchar *value) {
     return addSymbol(table, &symbol);
 }
 
-SymbolEntry *addFn(SymbolTable *table, cchar *id, cchar returnType, cchar *paramTypes, AstRoot *root) {
+SymbolEntry *addFunc(SymbolTable *table, cchar *id, cchar returnType, cchar *paramTypes, AstRoot *root) {
     SymbolEntry symbol = {
         .id = id,
         .symbolType = 'f',

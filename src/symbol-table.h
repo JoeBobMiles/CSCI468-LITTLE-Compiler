@@ -21,13 +21,13 @@ struct SymbolTable {
     size_t size; /* Must be a power of 2 */
 };
 
-#include "ast.h"
+#include "ast.h" /* NOTE: this MUST be below the definition of SymbolTable */
 
 void initSymbolTable(SymbolTable *table, cchar *name, size_t size);
 void deinitSymbolTable(SymbolTable *table);
 
 SymbolEntry *addVar(SymbolTable *table, cchar *id, cchar type, cchar *value);
-SymbolEntry *addFn(SymbolTable *table, cchar *id, cchar returnType, cchar *paramTypes, AstRoot *root);
+SymbolEntry *addFunc(SymbolTable *table, cchar *id, cchar returnType, cchar *paramTypes, AstRoot *root);
 
 SymbolEntry getSymbol(SymbolTable *table, cchar *id);
 
