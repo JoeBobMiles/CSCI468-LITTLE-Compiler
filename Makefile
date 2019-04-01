@@ -1,4 +1,4 @@
-program_name = step4
+program_name = step3
 language     = TINY
 build_dir    = build
 
@@ -26,7 +26,7 @@ ANTLR      = java$e -jar bin/antlr-4.7.2-complete.jar
 ANTLRFLAGS = -Dlanguage=Cpp -listener -visitor
 
 added_flags   := $(CXXFLAGS) -DANTLR4CPP_STATIC
-warning_flags := -Wall -Wextra -Wno-attributes -Wno-cast-qual -Wno-write-strings -Wno-unused-parameter -fpermissive
+warning_flags := -Wall -Wextra -Wno-attributes -Wno-cast-qual -Wno-write-strings -Wno-unused-parameter
 CPPDIRS       := -I$(source_dir) -I$(antlr_dir) -I$(runtime_dir) -iquote $(runtime_dir)
 
 override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags) -fsanitize=address

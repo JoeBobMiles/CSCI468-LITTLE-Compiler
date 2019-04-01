@@ -49,29 +49,30 @@ void deinitSymbolTable(SymbolTable *table) {
 }
 
 static
-bool _addSymbol(SymbolTable *table, cchar *id, cchar *type, cchar *value) {
+SymbolEntry *_addSymbol(SymbolTable *table, SymbolEntry *symbol) {
     assert(table->count < table->size);
 
-    size_t index = getIndex(table, id);
+    size_t index = getIndex(table, symbol->id);
     table->order[table->count++] = index;
 
     SymbolEntry *entry = table->data + index;
 
     if (!entry->id) {
-        *entry = (SymbolEntry){
-            .id = id,
-            .type = type,
-            .value = value,
-        };
+        entry->id = symbol->id;
+        entry->symbolType = symbol->symbolType;
+        entry->logicalType = symbol->logicalType;
+        entry->value = symbol->value;
+        entry->root = symbol->root;
 
-        return true;
+        return entry;
     }
     else {
-        return false;
+        return 0;
     }
 }
 
-bool addSymbol(SymbolTable *table, cchar *id, cchar *type, cchar *value) {
+static
+SymbolEntry *addSymbol(SymbolTable *table, SymbolEntry *symbol) {
     if (4*table->count > 3*table->size) {
         /* keep table at at most 3/4 capacity */
 
@@ -80,11 +81,11 @@ bool addSymbol(SymbolTable *table, cchar *id, cchar *type, cchar *value) {
 
         for (size_t i = 0; i < oldTable.count; ++i) {
             size_t index = oldTable.order[i];
-            SymbolEntry entry = oldTable.data[index];
+            SymbolEntry *entry = oldTable.data + index;
 
-            assert(entry.id);
+            assert(entry->id);
 
-            if (!_addSymbol(table, entry.id, entry.type, entry.value)) {
+            if (!_addSymbol(table, entry)) {
                 InvalidCodePath;
             }
         }
@@ -92,7 +93,31 @@ bool addSymbol(SymbolTable *table, cchar *id, cchar *type, cchar *value) {
         deinitSymbolTable(&oldTable);
     }
 
-    return _addSymbol(table, id, type, value);
+    return _addSymbol(table, symbol);
+}
+
+SymbolEntry *addVar(SymbolTable *table, cchar *id, cchar type, cchar *value) {
+    SymbolEntry symbol = {
+        .id = id,
+        .symbolType = 'v',
+        .logicalType = type,
+        .value = value,
+        .root = 0,
+    };
+
+    return addSymbol(table, &symbol);
+}
+
+SymbolEntry *addFn(SymbolTable *table, cchar *id, cchar returnType, cchar *paramTypes, AstRoot *root) {
+    SymbolEntry symbol = {
+        .id = id,
+        .symbolType = 'f',
+        .logicalType = returnType,
+        .value = paramTypes,
+        .root = root,
+    };
+
+    return addSymbol(table, &symbol);
 }
 
 SymbolEntry getSymbol(SymbolTable *table, cchar *id) {

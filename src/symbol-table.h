@@ -3,10 +3,14 @@
 
 #include "main.h"
 
+struct AstRoot;
+
 struct SymbolEntry {
     cchar *id;
-    cchar *type;
-    cchar *value;
+    char symbolType;  /* function vs var */
+    char logicalType; /* int, real, void, string */
+    cchar *value;     /* string value or function parameter type list */
+    AstRoot *root;
 };
 
 struct SymbolTable {
@@ -17,10 +21,14 @@ struct SymbolTable {
     size_t size; /* Must be a power of 2 */
 };
 
+#include "ast.h"
+
 void initSymbolTable(SymbolTable *table, cchar *name, size_t size);
 void deinitSymbolTable(SymbolTable *table);
 
-bool addSymbol(SymbolTable *table, cchar *id, cchar *type, cchar *value = 0);
+SymbolEntry *addVar(SymbolTable *table, cchar *id, cchar type, cchar *value);
+SymbolEntry *addFn(SymbolTable *table, cchar *id, cchar returnType, cchar *paramTypes, AstRoot *root);
+
 SymbolEntry getSymbol(SymbolTable *table, cchar *id);
 
 #endif

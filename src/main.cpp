@@ -101,12 +101,12 @@ public:
 
     virtual void enterVarDecl(TINYParser::VarDeclContext *ctx) override {
         SymbolTable *table = getScope(&program);
-        char *type = saveString(ctx->varType()->getText().c_str());
+        char type = tolower(ctx->varType()->getText()[0]);
 
         TINYParser::IdListContext *idList = ctx->idList();
         char *id = saveString(idList->id()->getText().c_str());
 
-        if (!addSymbol(table, id, type) && !program.firstError) {
+        if (!addVar(table, id, type, 0) && !program.firstError) {
             program.firstError = id;
         }
 
@@ -114,7 +114,7 @@ public:
         while (idTail && idTail->id()) {
             id = saveString(idTail->id()->getText().c_str());
 
-            if (!addSymbol(table, id, saveString(type)) && !program.firstError) {
+            if (!addVar(table, id, type, 0) && !program.firstError) {
                 program.firstError = id;
             }
 
@@ -125,10 +125,10 @@ public:
     virtual void enterStringDecl(TINYParser::StringDeclContext *ctx) override {
         SymbolTable *table = getScope(&program);
         char *id = saveString(ctx->id()->getText().c_str());
-        char *type = saveString(ctx->STRING()->getText().c_str());
+        char type = tolower(ctx->STRING()->getText()[0]);
         char *value = saveString(ctx->str()->getText().c_str());
 
-        if (!addSymbol(table, id, type, value) && !program.firstError) {
+        if (!addVar(table, id, type, value) && !program.firstError) {
             program.firstError = id;
         }
     }
@@ -137,9 +137,9 @@ public:
         SymbolTable *table = getScope(&program);
 
         char *id = saveString(ctx->id()->getText().c_str());
-        char *type = saveString(ctx->varType()->getText().c_str());
+        char type = tolower(ctx->varType()->getText()[0]);
 
-        if (!addSymbol(table, id, type) && !program.firstError) {
+        if (!addVar(table, id, type, 0) && !program.firstError) {
             program.firstError = id;
         }
     }
@@ -156,6 +156,32 @@ public:
 #endif
 };
 
+#if 0
+void freeProgram(Program *program) {
+    for (size_t listIndex = 0; listIndex < program->listCount; ++listIndex) {
+        deinitSymbolTable(program->tableList + listIndex);
+    }
+
+    free((void *)program);
+}
+
+Program *makeProgram(TINYParser::FileContext *ctx) {
+    Program *program = (Program *)malloc(sizeof *program);
+    *program = (Program){
+        .listCount = 0,
+        .stackHead = 0,
+        .firstError = 0,
+        .tableList = {},
+        .tableStack = {},
+    };
+
+    //TINYParser::ProgramContext *programCtx = ctx->program();
+    openNewScope(program, "GLOBAL");
+
+    return program;
+}
+#endif
+
 int main(int argc, char **argv) {
     ifstream file(argc == 1? "example.tiny": argv[1]);
 
@@ -166,8 +192,12 @@ int main(int argc, char **argv) {
         TINYParser parser(&tokenStream);
 
         OurListener listener; /* TODO: ditch the listener */
-        tree::ParseTree *tree = parser.file();
-        tree::ParseTreeWalker::DEFAULT.walk(&listener, tree);
+        TINYParser::FileContext *fileCtx = parser.file();
+        tree::ParseTreeWalker::DEFAULT.walk(&listener, fileCtx);
+
+#if 0
+        Program *program = makeProgram(fileCtx);
+#endif
 
         file.close();
 
@@ -187,11 +217,31 @@ int main(int argc, char **argv) {
                     SymbolEntry entry = table->data[index];
 
                     if (entry.id) {
-                        printf("name %s type %s", entry.id, entry.type);
-                        if (entry.value) {
-                            printf(" value %s", entry.value);
+                        switch (entry.symbolType) {
+                        case 'v': {
+                            cchar *type = 0;
+
+                            switch (entry.logicalType) {
+                            case 'i': type = "INT"; break;
+                            case 'f': type = "FLOAT"; break;
+                            case 'v': type = "VOID"; break;
+                            case 's': type = "STRING"; break;
+                            default: InvalidCodePath;
+                            }
+
+                            printf("name %s type %s", entry.id, type);
+                            if (entry.value) {
+                                printf(" value %s", entry.value);
+                            }
+                            printf("\n");
+                        } break;
+
+                        case 'f': {
+                            printf("TODO: functions\n");
+                        } break;
+
+                        default: InvalidCodePath;
                         }
-                        printf("\n");
                     }
                 }
 
@@ -206,6 +256,10 @@ int main(int argc, char **argv) {
         for (size_t listIndex = 0; listIndex < listCount; ++listIndex) {
             deinitSymbolTable(tableList + listIndex);
         }
+
+#if 0
+        freeProgram(program);
+#endif
     }
 
     deinitStringTable(globalStringTable);
