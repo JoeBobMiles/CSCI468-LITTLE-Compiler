@@ -1,6 +1,6 @@
 #include "main.h"
 
-#define STEP3_OUTPUT 0
+#define STEP3_OUTPUT 1
 
 #include "strings.h"
 #include "symbol-table.h"
@@ -61,107 +61,22 @@ SymbolTable *getScope(Program *program) {
 }
 
 static inline
+cchar *makeBlockName(Program *program) {
+    static char buffer[256];
+    snprintf(buffer, sizeof buffer, "BLOCK %d", ++program->blockCount);
+    return buffer;
+}
+
+static inline
 void closeScope(Program *program) {
     assert(program->stackHead > 0);
     --program->stackHead;
 }
 
-static const string blockString = "BLOCK ";
-class OurListener : public TINYBaseListener {
-public:
-    int blockNumber = 0;
-    Program program = {
-        .listCount = 0,
-        .stackHead = 0,
-        .firstError = 0,
-        .tableList = {},
-        .tableStack = {},
-    };
+void addDeclarations(Program *program, TINYParser::DeclContext *decl) {
+    SymbolTable *scope = getScope(program);
 
-    virtual void enterFuncDecl(TINYParser::FuncDeclContext *ctx) override {
-        openNewScope(&program, ctx->id()->getText());
-    }
-    virtual void exitFuncDecl(TINYParser::FuncDeclContext *ctx) override {
-        closeScope(&program);
-    }
-
-    virtual void enterIfStmt(TINYParser::IfStmtContext *ctx) override {
-        openNewScope(&program, blockString + to_string(++blockNumber));
-    }
-    virtual void exitIfStmt(TINYParser::IfStmtContext *ctx) override {
-        closeScope(&program);
-    }
-
-    virtual void enterElsePart(TINYParser::ElsePartContext *ctx) override {
-        if (!ctx->empty()) {
-            openNewScope(&program, blockString + to_string(++blockNumber));
-        }
-    }
-    virtual void exitElsePart(TINYParser::ElsePartContext *ctx) override {
-        if (!ctx->empty()) {
-            closeScope(&program);
-        }
-    }
-
-    virtual void enterWhileStmt(TINYParser::WhileStmtContext *ctx) override {
-        openNewScope(&program, blockString + to_string(++blockNumber));
-    }
-    virtual void exitWhileStmt(TINYParser::WhileStmtContext *ctx) override {
-        closeScope(&program);
-    }
-
-    virtual void enterParamDecl(TINYParser::ParamDeclContext *ctx) override {
-        SymbolTable *table = getScope(&program);
-
-        char *id = saveString(ctx->id()->getText().c_str());
-        char type = tolower(ctx->varType()->getText()[0]);
-
-        if (!addVar(table, id, type, 0) && !program.firstError) {
-            program.firstError = id;
-        }
-    }
-
-#if 1
-    virtual void enterEveryRule(antlr4::ParserRuleContext *ctx) override {
-        if (ctx->exception) {
-            /* TODO: indicate error without dieing */
-            throw ctx->exception;
-        }
-        //printf("%s\n", ctx->getText().c_str());
-    }
-    //virtual void exitEveryRule(antlr4::ParserRuleContext *ctx) override { }
-#endif
-};
-
-void freeProgram(Program *program) {
-    for (size_t listIndex = 0; listIndex < program->listCount; ++listIndex) {
-        deinitSymbolTable(program->tableList + listIndex);
-    }
-
-    free((void *)program);
-}
-
-Program *makeProgram(TINYParser::FileContext *ctx) {
-    Program *program = (Program *)malloc(sizeof *program);
-    *program = (Program){
-        .listCount = 0,
-        .stackHead = 0,
-        .firstError = 0,
-        .tableList = {},
-        .tableStack = {},
-    };
-
-    /* TODO: check for errors on our way down */
-
-    TINYParser::PgmBodyContext *pgmBody = ctx->program()->pgmBody();
-    SymbolTable *scope = openNewScope(program, "GLOBAL");
-
-    /*
-     * Take care of variable declarations.
-     */
-
-    TINYParser::DeclContext *decl = pgmBody->decl();
-    while (!decl->empty()) {
+    while (decl && !decl->empty()) {
         if (decl->stringDecl()) {
             TINYParser::StringDeclContext *stringDecl = decl->stringDecl();
             assert(stringDecl);
@@ -201,9 +116,157 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
         decl = decl->decl();
         assert(decl);
     }
+}
+
+AstStatement *addStatements(Program *program, TINYParser::StmtListContext *stmtList) {
+    while (!stmtList->empty()) {
+        TINYParser::StmtContext *stmt = stmtList->stmt();
+
+        if (stmt->baseStmt()) {
+            /* TODO: base statements. These go into the tree */
+        }
+        else if (stmt->ifStmt()) {
+            TINYParser::IfStmtContext *ifStmt = stmt->ifStmt();
+
+            openNewScope(program, makeBlockName(program));
+            addDeclarations(program, ifStmt->decl());
+            addStatements(program, ifStmt->stmtList());
+            closeScope(program);
+
+            TINYParser::ElsePartContext *elsePart = ifStmt->elsePart();
+            if (!elsePart->empty()) {
+                openNewScope(program, makeBlockName(program));
+                addDeclarations(program, elsePart->decl());
+                addStatements(program, elsePart->stmtList());
+                closeScope(program);
+            }
+        }
+        else if (stmt->whileStmt()) {
+            TINYParser::WhileStmtContext *whileStmt = stmt->whileStmt();
+
+            openNewScope(program, makeBlockName(program));
+            addDeclarations(program, whileStmt->decl());
+            addStatements(program, whileStmt->stmtList());
+            closeScope(program);
+        }
+        else { InvalidCodePath; }
+
+        stmtList = stmtList->stmtList();
+    }
+
+    return 0; /* TODO: actually return these statements */
+}
+
+void freeFuncRoot(AstRoot *root) {
+    free((void *)root);
+}
+
+AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar *id) {
+    SymbolTable *scope = openNewScope(program, id);
+
+    AstRoot *root = (AstRoot *)malloc(sizeof *root);
+    *root = (AstRoot){
+        .symbols = scope,
+        .firstStatement = 0,
+    };
 
     /*
-     * Take care of function declarations and recurs into them.
+     * Parameters
+     */
+
+    TINYParser::ParamDeclListContext *paramList = ctx->paramDeclList();
+    if (!paramList->empty()) {
+        TINYParser::ParamDeclContext *param = paramList->paramDecl();
+
+        char *id = saveString(param->id()->getText().c_str());
+        char type = tolower(param->varType()->getText()[0]);
+
+        if (!addVar(scope, id, type, 0) && !program->firstError) {
+            program->firstError = id;
+        }
+
+        TINYParser::ParamDeclTailContext *paramTail = paramList->paramDeclTail();
+        while (!paramTail->empty()) {
+            param = paramTail->paramDecl();
+
+            id = saveString(param->id()->getText().c_str());
+            type = tolower(param->varType()->getText()[0]);
+
+            if (!addVar(scope, id, type, 0) && !program->firstError) {
+                program->firstError = id;
+            }
+
+            paramTail = paramTail->paramDeclTail();
+            assert(paramTail);
+        }
+    }
+
+    /*
+     * Declarations
+     */
+
+    TINYParser::FuncBodyContext *funcBody = ctx->funcBody();
+    addDeclarations(program, funcBody->decl());
+
+    /*
+     * Walk the Statements
+     */
+
+    addStatements(program, funcBody->stmtList());
+
+    closeScope(program);
+
+    return root;
+}
+
+void freeProgram(Program *program) {
+    for (size_t listIndex = 0; listIndex < program->listCount; ++listIndex) {
+        SymbolTable *table = program->tableList + listIndex;
+
+        /* get rid of any roots */
+        for (size_t i = 0; i < table->count; ++i) {
+            size_t index = table->order[i];
+            SymbolEntry entry = table->data[index];
+            if (entry.root) {
+                freeFuncRoot(entry.root);
+            }
+        }
+
+        deinitSymbolTable(table);
+    }
+
+    free((void *)program);
+}
+
+Program *makeProgram(TINYParser::FileContext *ctx) {
+    Program *program = (Program *)malloc(sizeof *program);
+    *program = (Program){
+        .root = (AstRoot){
+            .symbols = 0,
+            .firstStatement = 0,
+        },
+        .firstError = 0,
+        .blockCount = 0,
+        .listCount = 0,
+        .stackHead = 0,
+        .tableList = {},
+        .tableStack = {},
+    };
+
+    TINYParser::PgmBodyContext *pgmBody = ctx->program()->pgmBody();
+    SymbolTable *scope = openNewScope(program, "GLOBAL");
+    program->root.symbols = scope;
+
+    /* TODO: check for errors on our way down */
+
+    /*
+     * Declarations
+     */
+
+    addDeclarations(program, pgmBody->decl());
+
+    /*
+     * Functions
      */
 
     TINYParser::FuncDeclarationsContext *funcs = pgmBody->funcDeclarations();
@@ -216,16 +279,32 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
         char paramTypes[32] = {};
         /* NOTE: 31 parameters should be enough for anyone */
 
-        char *end = paramTypes + sizeof paramTypes - 1;
-        char *cur = paramTypes;
-        /* TODO: actually form paramTypes */
-        *cur++ = 'i';
-        *cur++ = 'f';
-        *cur++ = 's';
-        assert(cur < end);
+        /*
+         * build up the parameter type string
+         */
 
-        /* TODO: add root to entry */
-        addFunc(scope, id, returnType, saveString(paramTypes), 0);
+        char *cur = paramTypes;
+        TINYParser::ParamDeclListContext *paramList = funcDecl->paramDeclList();
+        if (!paramList->empty()) {
+            TINYParser::ParamDeclContext *param = paramList->paramDecl();
+
+            *cur++ = tolower(param->varType()->getText()[0]);
+            assert(cur < paramTypes + sizeof paramTypes - 1);
+
+            TINYParser::ParamDeclTailContext *paramTail = paramList->paramDeclTail();
+            while (!paramTail->empty()) {
+                param = paramTail->paramDecl();
+
+                *cur++ = tolower(param->varType()->getText()[0]);
+                assert(cur < paramTypes + sizeof paramTypes - 1);
+
+                paramTail = paramTail->paramDeclTail();
+                assert(paramTail);
+            }
+        }
+
+        AstRoot *funcRoot = makeFuncRoot(program, funcDecl, id);
+        addFunc(scope, id, returnType, saveString(paramTypes), funcRoot);
 
         funcs = funcs->funcDeclarations();
         assert(funcs);

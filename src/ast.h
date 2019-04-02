@@ -17,15 +17,18 @@ struct AstStatement {
 };
 
 struct AstRoot {
-    cchar *id;
     SymbolTable *symbols;
     AstStatement *firstStatement;
 };
 
 struct Program {
+    AstRoot root;
+    cchar *firstError; /* TODO: is this worth it? */
+
+    u32 blockCount;
+
     size_t listCount;
     size_t stackHead;
-    cchar *firstError;
 
     /* Master list of all tables */
     SymbolTable tableList[MAX_TABLES];
