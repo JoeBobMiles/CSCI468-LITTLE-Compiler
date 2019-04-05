@@ -133,12 +133,16 @@ AstStatement *addStatements(Program *program, TINYParser::StmtListContext *stmtL
             addStatements(program, ifStmt->stmtList());
             closeScope(program);
 
+            /* TODO: add a statement that represents this */
+
             TINYParser::ElsePartContext *elsePart = ifStmt->elsePart();
             if (!elsePart->empty()) {
                 openNewScope(program, makeBlockName(program));
                 addDeclarations(program, elsePart->decl());
                 addStatements(program, elsePart->stmtList());
                 closeScope(program);
+
+                /* TODO: add a statement that represents this */
             }
         }
         else if (stmt->whileStmt()) {
@@ -148,8 +152,10 @@ AstStatement *addStatements(Program *program, TINYParser::StmtListContext *stmtL
             addDeclarations(program, whileStmt->decl());
             addStatements(program, whileStmt->stmtList());
             closeScope(program);
+
+            /* TODO: add a statement that represents this */
         }
-        else { InvalidCodePath; }
+        else InvalidCodePath;
 
         stmtList = stmtList->stmtList();
     }
@@ -157,15 +163,30 @@ AstStatement *addStatements(Program *program, TINYParser::StmtListContext *stmtL
     return 0; /* TODO: actually return these statements */
 }
 
-void freeFuncRoot(AstRoot *root) {
+void freeRoot(AstRoot *root) {
+    assert(root);
+
+    AstStatement *statement = root->firstStatement;
+    while (statement) {
+
+        /* TODO: free statement, if it's a root, recurs into it */
+
+        statement = statement->nextStatement;
+    }
+
     free((void *)root);
 }
 
 AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar *id) {
+    assert(program);
+    assert(ctx);
+    assert(id);
+
     SymbolTable *scope = openNewScope(program, id);
 
     AstRoot *root = (AstRoot *)malloc(sizeof *root);
     *root = (AstRoot){
+        .type = ROOT_Function,
         .symbols = scope,
         .firstStatement = 0,
     };
@@ -212,7 +233,7 @@ AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar 
      * Walk the Statements
      */
 
-    addStatements(program, funcBody->stmtList());
+    root->firstStatement = addStatements(program, funcBody->stmtList());
 
     closeScope(program);
 
@@ -220,6 +241,8 @@ AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar 
 }
 
 void freeProgram(Program *program) {
+    assert(program);
+
     for (size_t listIndex = 0; listIndex < program->listCount; ++listIndex) {
         SymbolTable *table = program->tableList + listIndex;
 
@@ -228,7 +251,7 @@ void freeProgram(Program *program) {
             size_t index = table->order[i];
             SymbolEntry entry = table->data[index];
             if (entry.root) {
-                freeFuncRoot(entry.root);
+                freeRoot(entry.root);
             }
         }
 
@@ -242,6 +265,7 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
     Program *program = (Program *)malloc(sizeof *program);
     *program = (Program){
         .root = (AstRoot){
+            .type = ROOT_Global,
             .symbols = 0,
             .firstStatement = 0,
         },
@@ -315,6 +339,108 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
     return program;
 }
 
+void printStatement(AstStatement *statement, cchar *indent) {
+    printf("%s-- TODO\n", indent);
+}
+
+void printRoot(AstRoot *root) {
+    /* 64 levels of indent should be enough for anyone */
+    static char indent[64]; /* TODO: de-static-ify this? */
+    static char *indentCur = indent;
+
+    assert(indentCur >= indent);
+
+    *indentCur = 0; /* cap the current indent amount */
+
+    SymbolTable *symbols = root->symbols;
+
+    switch (root->type) {
+    case ROOT_Null:
+        printf("%s<NULL ROOT>\n", indent);
+        break;
+
+    case ROOT_Global:
+        printf("%sPROGRAM root\n", indent);
+        break;
+
+    case ROOT_Function: {
+        bool firstParam = true;
+        printf("%sFUNCTION(", indent);
+        for (size_t i = 0; i < symbols->count; ++i) {
+            size_t index = symbols->order[i];
+            SymbolEntry entry = symbols->data[index];
+
+            if (entry.symbolType == 'p') {
+                if (firstParam) {
+                    printf("%s %s", typeString(entry.logicalType), entry.id);
+                    firstParam = false;
+                }
+                else {
+                    printf(", %s %s", typeString(entry.logicalType), entry.id);
+                }
+            }
+        }
+        printf(")\n");
+    }   break;
+
+    case ROOT_If:
+        printf("%s<TODO: IF>\n", indent);
+        break;
+
+    case ROOT_Else:
+        printf("%s<TODO: ELSE>\n", indent);
+        break;
+
+    case ROOT_While:
+        printf("%s<TODO: WHILE>\n", indent);
+        break;
+    }
+
+    printf("%sBEGIN\n", indent);
+    *indentCur++ = '\t';
+
+    printf("%s-- Variables:\n\n", indent);
+    for (size_t i = 0; i < symbols->count; ++i) {
+        size_t index = symbols->order[i];
+        SymbolEntry entry = symbols->data[index];
+
+        if (entry.symbolType == 'v') {
+            cchar *type = typeString(entry.logicalType);
+
+            printf("%s%s %s", indent, type, entry.id);
+            if (entry.value) {
+                printf(" := %s", entry.value);
+            }
+            printf(";\n");
+        }
+    }
+
+    if (root->type == ROOT_Global) {
+        printf("\n%s-- Functions:\n\n", indent);
+        for (size_t i = 0; i < symbols->count; ++i) {
+            size_t index = symbols->order[i];
+            SymbolEntry entry = symbols->data[index];
+
+            if (entry.symbolType == 'f') {
+                printRoot(entry.root);
+            }
+        }
+    }
+    else {
+        printf("\n%s-- Statements:\n\n", indent);
+
+        AstStatement *statement = root->firstStatement;
+        while (statement) {
+            printStatement(statement, indent);
+
+            statement = statement->nextStatement;
+        }
+    }
+
+    *--indentCur = '\0';
+    printf("%sEND\n", indent);
+}
+
 int main(int argc, char **argv) {
     ifstream file(argc == 1? "example.tiny": argv[1]);
 
@@ -326,9 +452,11 @@ int main(int argc, char **argv) {
 
         TINYParser::FileContext *fileCtx = parser.file();
         Program *program = makeProgram(fileCtx);
+        printRoot(&program->root);
 
         file.close();
 
+#if 0
         /* copy some things out for convenience */
         cchar *firstError = program->firstError;
         size_t listCount = program->listCount;
@@ -393,6 +521,7 @@ int main(int argc, char **argv) {
         else {
             printf("DECLARATION ERROR %s\n", firstError);
         }
+#endif
 
         /* free all of our stuff */
         freeProgram(program);

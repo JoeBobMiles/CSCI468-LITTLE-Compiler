@@ -7,7 +7,7 @@ struct AstRoot;
 
 struct SymbolEntry {
     cchar *id;
-    char symbolType;  /* function vs var */
+    char symbolType;  /* function vs var vs param*/
     char logicalType; /* int, real, void, string */
     cchar *value;     /* string value or function parameter type list */
     AstRoot *root;
