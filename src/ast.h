@@ -33,7 +33,7 @@ enum ExprType {
     EXPR_IntLiteral    = 'I',
     EXPR_FloatLiteral  = 'F',
     EXPR_StringLiteral = 'S',
-    EXPR_Symbol        = 's',
+    EXPR_Symbol        = 's',    /* the only L-value */
 
     /* These indicate an AstFunctionCall */
 
@@ -100,6 +100,9 @@ struct AstStatement {
     StatementType type;
 };
 
+AstStatement *makeStatement(StatementType);
+#define makeRootStatement() ((AstRootStatement *)makeStatement(STATEMENT_Root))
+
 enum RootType {
     ROOT_Null = 0,
 
@@ -113,7 +116,24 @@ enum RootType {
 struct AstRoot {
     RootType type;
     SymbolTable *symbols;
+    AstBinaryOp *comparison;
     AstStatement *firstStatement;
+};
+
+struct AstRootStatement {
+    AstStatement header;
+    AstRoot *root;
+};
+
+struct AstAssignStatement {
+    AstStatement header;
+    AstTerminal *symbol;
+    AstExpr *expr;
+};
+
+struct AstReturnStatement {
+    AstStatement header;
+    AstExpr *expr;
 };
 
 struct Program {

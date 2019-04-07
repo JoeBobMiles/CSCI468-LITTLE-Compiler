@@ -6,12 +6,12 @@
 #include <cstdio>
 
 static
-size_t getIndex(SymbolTable *table, cchar *id) {
+u32 getIndex(SymbolTable *table, cchar *id) {
     /* hash algorithm from http://www.cse.yorku.ca/~oz/hash.html */
 
     char c;
     cchar *cur = id;
-    size_t hash = 5381;
+    u32 hash = 5381;
     while ((c = *cur++)) {
         hash = (33 * hash) + c;
     }
@@ -21,7 +21,7 @@ size_t getIndex(SymbolTable *table, cchar *id) {
     /* either find the entry with the id or an empty slot */
 
     SymbolEntry *data = table->data;
-    size_t index = hash & (table->size - 1); /* truncate to range */
+    u32 index = hash & (table->size - 1); /* truncate to range */
     while (data[index].id && !stringsAreEqual(data[index].id, id)) {
         index = (index + 1) & (table->size - 1);
     }
@@ -29,15 +29,15 @@ size_t getIndex(SymbolTable *table, cchar *id) {
     return index;
 }
 
-void initSymbolTable(SymbolTable *table, cchar *name, size_t size) {
+void initSymbolTable(SymbolTable *table, cchar *name, u32 size) {
     assert(size && (size & (size - 1)) == 0); /* check for power of 2 */
 
     *table = (SymbolTable){
         .name = name,
-        .data = (SymbolEntry *)malloc(size * sizeof *table->data),
-        .order = (size_t *)malloc(size * sizeof *table->order),
         .count = 0,
         .size = size,
+        .data = (SymbolEntry *)malloc(size * sizeof *table->data),
+        .order = (u32 *)malloc(size * sizeof *table->order),
     };
 
     zeroMemory((char *)table->data, size * sizeof *table->data);
@@ -52,7 +52,7 @@ static
 SymbolEntry *_addSymbol(SymbolTable *table, SymbolEntry *symbol) {
     assert(table->count < table->size);
 
-    size_t index = getIndex(table, symbol->id);
+    u32 index = getIndex(table, symbol->id);
     table->order[table->count++] = index;
 
     SymbolEntry *entry = table->data + index;
@@ -79,8 +79,8 @@ SymbolEntry *addSymbol(SymbolTable *table, SymbolEntry *symbol) {
         SymbolTable oldTable = *table;
         initSymbolTable(table, oldTable.name, oldTable.size << 1);
 
-        for (size_t i = 0; i < oldTable.count; ++i) {
-            size_t index = oldTable.order[i];
+        for (u32 i = 0; i < oldTable.count; ++i) {
+            u32 index = oldTable.order[i];
             SymbolEntry *entry = oldTable.data + index;
 
             assert(entry->id);
@@ -120,8 +120,9 @@ SymbolEntry *addFunc(SymbolTable *table, cchar *id, cchar returnType, cchar *par
     return addSymbol(table, &symbol);
 }
 
-SymbolEntry getSymbol(SymbolTable *table, cchar *id) {
-    size_t index = getIndex(table, id);
-    SymbolEntry entry = table->data[index];
-    return entry;
+SymbolEntry *getSymbol(SymbolTable *table, cchar *id) {
+    u32 index = getIndex(table, id);
+    SymbolEntry *entry = table->data + index;
+
+    return entry->id? entry: 0;
 }

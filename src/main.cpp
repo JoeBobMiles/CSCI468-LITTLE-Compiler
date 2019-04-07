@@ -119,48 +119,106 @@ void addDeclarations(Program *program, TINYParser::DeclContext *decl) {
 }
 
 AstStatement *addStatements(Program *program, TINYParser::StmtListContext *stmtList) {
+    //SymbolTable *scope = getScope(program);
+    AstStatement *Result = 0;
+    AstStatement **ResultPtr = &Result;
+
     while (!stmtList->empty()) {
         TINYParser::StmtContext *stmt = stmtList->stmt();
 
         if (stmt->baseStmt()) {
-            /* TODO: base statements. These go into the tree */
+            TINYParser::BaseStmtContext *base = stmt->baseStmt();
+            StatementType type = STATEMENT_Null;
+
+            if (base->assignStmt()) {
+                type = STATEMENT_Assign;
+            }
+            else if (base->readStmt()) {
+                type = STATEMENT_Read;
+            }
+            else if (base->writeStmt()) {
+                type = STATEMENT_Write;
+            }
+            else if (base->returnStmt()) {
+                type = STATEMENT_Return;
+            }
+            else InvalidCodePath;
+
+            *ResultPtr = makeStatement(type);
+            ResultPtr = &(**ResultPtr).nextStatement;
         }
         else if (stmt->ifStmt()) {
             TINYParser::IfStmtContext *ifStmt = stmt->ifStmt();
 
-            openNewScope(program, makeBlockName(program));
+            cchar *blockName = makeBlockName(program);
+            SymbolTable *ifScope = openNewScope(program, blockName);
+            AstRootStatement *ifRoot = makeRootStatement();
+
             addDeclarations(program, ifStmt->decl());
-            addStatements(program, ifStmt->stmtList());
+
+            TINYParser::StmtListContext *stmtList = ifStmt->stmtList();
+            ifRoot->root = (AstRoot *)malloc(sizeof *ifRoot->root);
+            *ifRoot->root = (AstRoot){
+                .type = ROOT_If,
+                .symbols = ifScope,
+                .comparison = 0, /* TODO: this */
+                .firstStatement = addStatements(program, stmtList),
+            };
+
+            *ResultPtr = &ifRoot->header;
+            ResultPtr = &(**ResultPtr).nextStatement;
             closeScope(program);
 
-            /* TODO: add a statement that represents this */
+            TINYParser::ElsePartContext *elseStmt = ifStmt->elsePart();
+            if (!elseStmt->empty()) {
+                cchar *blockName = makeBlockName(program);
+                SymbolTable *elseScope = openNewScope(program, blockName);
+                AstRootStatement *elseRoot = makeRootStatement();
 
-            TINYParser::ElsePartContext *elsePart = ifStmt->elsePart();
-            if (!elsePart->empty()) {
-                openNewScope(program, makeBlockName(program));
-                addDeclarations(program, elsePart->decl());
-                addStatements(program, elsePart->stmtList());
+                addDeclarations(program, elseStmt->decl());
+
+                TINYParser::StmtListContext *stmtList = elseStmt->stmtList();
+                elseRoot->root = (AstRoot *)malloc(sizeof *elseRoot->root);
+                *elseRoot->root = (AstRoot){
+                    .type = ROOT_Else,
+                    .symbols = elseScope,
+                    .comparison = 0, /* TODO: this */
+                    .firstStatement = addStatements(program, stmtList),
+                };
+
+                *ResultPtr = &elseRoot->header;
+                ResultPtr = &(**ResultPtr).nextStatement;
                 closeScope(program);
-
-                /* TODO: add a statement that represents this */
             }
         }
         else if (stmt->whileStmt()) {
             TINYParser::WhileStmtContext *whileStmt = stmt->whileStmt();
 
-            openNewScope(program, makeBlockName(program));
-            addDeclarations(program, whileStmt->decl());
-            addStatements(program, whileStmt->stmtList());
-            closeScope(program);
+            cchar *blockName = makeBlockName(program);
+            SymbolTable *whileScope = openNewScope(program, blockName);
+            AstRootStatement *whileRoot = makeRootStatement();
 
-            /* TODO: add a statement that represents this */
+            addDeclarations(program, whileStmt->decl());
+
+            TINYParser::StmtListContext *stmtList = whileStmt->stmtList();
+            whileRoot->root = (AstRoot *)malloc(sizeof *whileRoot->root);
+            *whileRoot->root = (AstRoot){
+                .type = ROOT_While,
+                .symbols = whileScope,
+                .comparison = 0, /* TODO: this */
+                .firstStatement = addStatements(program, stmtList),
+            };
+
+            *ResultPtr = &whileRoot->header;
+            ResultPtr = &(**ResultPtr).nextStatement;
+            closeScope(program);
         }
         else InvalidCodePath;
 
         stmtList = stmtList->stmtList();
     }
 
-    return 0; /* TODO: actually return these statements */
+    return Result;
 }
 
 void freeRoot(AstRoot *root) {
@@ -168,10 +226,16 @@ void freeRoot(AstRoot *root) {
 
     AstStatement *statement = root->firstStatement;
     while (statement) {
+        AstStatement *nextStatement = statement->nextStatement;
 
         /* TODO: free statement, if it's a root, recurs into it */
+        if (statement->type == STATEMENT_Root) {
+            AstRootStatement *asRoot = (AstRootStatement *)statement;
+            freeRoot(asRoot->root);
+        }
 
-        statement = statement->nextStatement;
+        free((void *) statement);
+        statement = nextStatement;
     }
 
     free((void *)root);
@@ -188,6 +252,7 @@ AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar 
     *root = (AstRoot){
         .type = ROOT_Function,
         .symbols = scope,
+        .comparison = 0, /* TODO: this */
         .firstStatement = 0,
     };
 
@@ -243,13 +308,14 @@ AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar 
 void freeProgram(Program *program) {
     assert(program);
 
-    for (size_t listIndex = 0; listIndex < program->listCount; ++listIndex) {
+    for (u32 listIndex = 0; listIndex < program->listCount; ++listIndex) {
         SymbolTable *table = program->tableList + listIndex;
 
         /* get rid of any roots */
-        for (size_t i = 0; i < table->count; ++i) {
-            size_t index = table->order[i];
+        for (u32 i = 0; i < table->count; ++i) {
+            u32 index = table->order[i];
             SymbolEntry entry = table->data[index];
+
             if (entry.root) {
                 freeRoot(entry.root);
             }
@@ -267,6 +333,7 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
         .root = (AstRoot){
             .type = ROOT_Global,
             .symbols = 0,
+            .comparison = 0,
             .firstStatement = 0,
         },
         .firstError = 0,
@@ -339,8 +406,31 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
     return program;
 }
 
+void printRoot(AstRoot *);
 void printStatement(AstStatement *statement, cchar *indent) {
-    printf("%s-- TODO\n", indent);
+    switch (statement->type) {
+    case STATEMENT_Root:
+        printRoot(((AstRootStatement *)statement)->root);
+        break;
+
+    case STATEMENT_Assign:
+        printf("%s-- TODO: Assign\n", indent);
+        break;
+
+    case STATEMENT_Read:
+        printf("%s-- TODO: Read\n", indent);
+        break;
+
+    case STATEMENT_Write:
+        printf("%s-- TODO: Write\n", indent);
+        break;
+
+    case STATEMENT_Return:
+        printf("%s-- TODO: Return\n", indent);
+        break;
+
+    default: InvalidCodePath;
+    }
 }
 
 void printRoot(AstRoot *root) {
@@ -365,9 +455,9 @@ void printRoot(AstRoot *root) {
 
     case ROOT_Function: {
         bool firstParam = true;
-        printf("%sFUNCTION(", indent);
-        for (size_t i = 0; i < symbols->count; ++i) {
-            size_t index = symbols->order[i];
+        printf("%sFUNCTION %s(", indent, symbols->name);
+        for (u32 i = 0; i < symbols->count; ++i) {
+            u32 index = symbols->order[i];
             SymbolEntry entry = symbols->data[index];
 
             if (entry.symbolType == 'p') {
@@ -400,8 +490,8 @@ void printRoot(AstRoot *root) {
     *indentCur++ = '\t';
 
     printf("%s-- Variables:\n\n", indent);
-    for (size_t i = 0; i < symbols->count; ++i) {
-        size_t index = symbols->order[i];
+    for (u32 i = 0; i < symbols->count; ++i) {
+        u32 index = symbols->order[i];
         SymbolEntry entry = symbols->data[index];
 
         if (entry.symbolType == 'v') {
@@ -416,13 +506,22 @@ void printRoot(AstRoot *root) {
     }
 
     if (root->type == ROOT_Global) {
-        printf("\n%s-- Functions:\n\n", indent);
-        for (size_t i = 0; i < symbols->count; ++i) {
-            size_t index = symbols->order[i];
-            SymbolEntry entry = symbols->data[index];
+        /* print out main() first, because I think the pseudo-asm goes
+         * top-to-bottom, and we want to hit main() first */
+        printf("\n%s-- Main:\n\n", indent);
+        SymbolEntry *mainEntry = getSymbol(symbols, "main");
+        if (mainEntry && mainEntry->symbolType == 'f') {
+            printRoot(mainEntry->root);
+        }
 
-            if (entry.symbolType == 'f') {
-                printRoot(entry.root);
+        printf("\n%s-- Other Functions:\n\n", indent);
+        for (u32 i = 0; i < symbols->count; ++i) {
+            u32 index = symbols->order[i];
+            SymbolEntry *entry = symbols->data + index;
+
+            /* ...but skip main() */
+            if (entry->symbolType == 'f' && !stringsAreEqual(entry->id, "main")) {
+                printRoot(entry->root);
             }
         }
     }
@@ -455,73 +554,6 @@ int main(int argc, char **argv) {
         printRoot(&program->root);
 
         file.close();
-
-#if 0
-        /* copy some things out for convenience */
-        cchar *firstError = program->firstError;
-        size_t listCount = program->listCount;
-        SymbolTable *tableList = program->tableList;
-
-        if (!firstError) {
-            for (size_t listIndex = 0; listIndex < listCount; ++listIndex) {
-                SymbolTable *table = tableList + listIndex;
-
-                printf("Symbol table %s\n", table->name);
-
-                for (size_t i = 0; i < table->count; ++i) {
-                    size_t index = table->order[i];
-                    SymbolEntry entry = table->data[index];
-
-                    if (entry.id) {
-                        switch (entry.symbolType) {
-                        case 'v': {
-                            cchar *type = typeString(entry.logicalType);
-
-#if STEP3_OUTPUT
-                            printf("name %s type %s", entry.id, type);
-                            if (entry.value) {
-                                printf(" value %s", entry.value);
-                            }
-                            printf("\n");
-#else
-                            printf("var %s %s", type, entry.id);
-                            if (entry.value) {
-                                printf(" := %s", entry.value);
-                            }
-                            printf(";\n");
-#endif
-                        } break;
-
-                        case 'f': {
-#if !STEP3_OUTPUT
-                            cchar *type = typeString(entry.logicalType);
-                            assert(entry.value);
-
-                            printf("func %s %s(", type, entry.id);
-
-                            cchar *cur = entry.value;
-                            if (*cur) {
-                                printf("%s", typeString(*cur++));
-                                while (*cur) {
-                                    printf(", %s", typeString(*cur++));
-                                }
-                            }
-                            printf(");\n");
-#endif
-                        } break;
-
-                        default: InvalidCodePath;
-                        }
-                    }
-                }
-
-                printf("\n");
-            }
-        }
-        else {
-            printf("DECLARATION ERROR %s\n", firstError);
-        }
-#endif
 
         /* free all of our stuff */
         freeProgram(program);
