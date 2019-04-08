@@ -5,7 +5,7 @@
 
 #ifdef NDEBUG
 #   define assert(E)
-#   define InvalidCodePath
+#   define InvalidCodePath {}
 #else
 #   include <assert.h>
 #   include <stdlib.h>

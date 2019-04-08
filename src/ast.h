@@ -41,43 +41,23 @@ enum ExprType {
 };
 
 struct AstExpr {
-    /* NOTE:
-     *
-     * This type serves as a header for other types. This is how you do
-     * quasi-inheritance in C. It's glorious, if a bit janky.
-     */
     ExprType type;
     u32 tempNumber; /* non-terminals get a temp number. */
 
-    /* TODO: should this be a discriminated union instead? The sub-types are
-     * of pretty similar size, after all. It would look something like this:
-     * union {
-     *     struct { ... } binOp;
-     *     struct { ... } terminal;
-     *     struct { ... } functionCall;
-     * } as;
-     */
-};
-
-struct AstBinaryOp {
-    AstExpr header; /* must be the first member */
-
-    AstExpr *leftChild;
-    AstExpr *rightChild;
-};
-
-struct AstTerminal {
-    AstExpr header; /* must be the first member */
-
-    AstExpr *nextParam; /* TODO: this? */
-    cchar *text;
-};
-
-struct AstFunctionCall {
-    AstExpr header; /* must be the first member */
-
-    cchar *functionName;
-    AstExpr *firstParam; /* TODO: this? */
+    union {
+        struct {
+            AstExpr *leftChild;
+            AstExpr *rightChild;
+        } asBinaryOp;
+        struct {
+            AstExpr *nextParam; /* TODO: this? */
+            cchar *text;
+        } asTerminal;
+        struct {
+            cchar *functionName;
+            AstExpr *firstParam; /* TODO: this? */
+        } asFuncCall;
+    };
 };
 
 
@@ -98,10 +78,20 @@ enum StatementType {
 struct AstStatement {
     AstStatement *nextStatement;
     StatementType type;
+
+    union {
+        AstRoot *asRoot;
+        AstExpr *asReturn;
+        struct {
+            cchar *symbol;
+            AstExpr *expr;
+        } asAssign;
+        void *asRead;  /* TODO */
+        void *asWrite; /* TODO */
+    };
 };
 
-AstStatement *makeStatement(StatementType);
-#define makeRootStatement() ((AstRootStatement *)makeStatement(STATEMENT_Root))
+AstStatement *makeStatement(StatementType type);
 
 enum RootType {
     ROOT_Null = 0,
@@ -116,24 +106,8 @@ enum RootType {
 struct AstRoot {
     RootType type;
     SymbolTable *symbols;
-    AstBinaryOp *comparison;
+    AstExpr *comparison;
     AstStatement *firstStatement;
-};
-
-struct AstRootStatement {
-    AstStatement header;
-    AstRoot *root;
-};
-
-struct AstAssignStatement {
-    AstStatement header;
-    AstTerminal *symbol;
-    AstExpr *expr;
-};
-
-struct AstReturnStatement {
-    AstStatement header;
-    AstExpr *expr;
 };
 
 struct Program {

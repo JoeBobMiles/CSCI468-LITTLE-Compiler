@@ -14,6 +14,8 @@
 #include <TINYBaseVisitor.h>
 #include <TINYBaseListener.h>
 
+#include "simplify-antlr-types.h"
+
 #include <cstdio>
 
 #include <fstream>
@@ -61,6 +63,19 @@ SymbolTable *getScope(Program *program) {
 }
 
 static inline
+SymbolEntry *findDecl(Program *program, cchar *id) {
+    SymbolEntry *result = 0;
+
+    u32 stackHead = program->stackHead;
+    while (stackHead && !result) {
+        SymbolTable *scope = program->tableStack[--stackHead];
+        result = getSymbol(scope, id);
+    }
+
+    return result;
+}
+
+static inline
 cchar *makeBlockName(Program *program) {
     static char buffer[256];
     snprintf(buffer, sizeof buffer, "BLOCK %d", ++program->blockCount);
@@ -73,12 +88,12 @@ void closeScope(Program *program) {
     --program->stackHead;
 }
 
-void addDeclarations(Program *program, TINYParser::DeclContext *decl) {
+void addDeclarations(Program *program, DeclContext *decl) {
     SymbolTable *scope = getScope(program);
 
     while (decl && !decl->empty()) {
         if (decl->stringDecl()) {
-            TINYParser::StringDeclContext *stringDecl = decl->stringDecl();
+            StringDeclContext *stringDecl = decl->stringDecl();
             assert(stringDecl);
 
             char *id = saveString(stringDecl->id()->getText().c_str());
@@ -89,19 +104,19 @@ void addDeclarations(Program *program, TINYParser::DeclContext *decl) {
             }
         }
         else {
-            TINYParser::VarDeclContext *varDecl = decl->varDecl();
+            VarDeclContext *varDecl = decl->varDecl();
             assert(varDecl);
 
             char type = tolower(varDecl->varType()->getText()[0]);
 
-            TINYParser::IdListContext *idList = varDecl->idList();
+            IdListContext *idList = varDecl->idList();
             char *id = saveString(idList->id()->getText().c_str());
 
             if (!addVar(scope, id, type, 0) && !program->firstError) {
                 program->firstError = id;
             }
 
-            TINYParser::IdTailContext *idTail = idList->idTail();
+            IdTailContext *idTail = idList->idTail();
             while (idTail && idTail->id()) {
                 id = saveString(idTail->id()->getText().c_str());
 
@@ -118,99 +133,121 @@ void addDeclarations(Program *program, TINYParser::DeclContext *decl) {
     }
 }
 
-AstStatement *addStatements(Program *program, TINYParser::StmtListContext *stmtList) {
+AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
     //SymbolTable *scope = getScope(program);
-    AstStatement *Result = 0;
-    AstStatement **ResultPtr = &Result;
+    AstStatement *result = 0;
+    AstStatement **resultPtr = &result;
 
     while (!stmtList->empty()) {
-        TINYParser::StmtContext *stmt = stmtList->stmt();
+        StmtContext *stmt = stmtList->stmt();
 
         if (stmt->baseStmt()) {
-            TINYParser::BaseStmtContext *base = stmt->baseStmt();
-            StatementType type = STATEMENT_Null;
+            BaseStmtContext *base = stmt->baseStmt();
+            *resultPtr = makeStatement(STATEMENT_Null);
 
             if (base->assignStmt()) {
-                type = STATEMENT_Assign;
+                AssignStmtContext *assignStmt = base->assignStmt();
+                AssignExprContext *assignExpr = assignStmt->assignExpr();
+                IdContext *id = assignExpr->id();
+
+                SymbolEntry *symbol = findDecl(program, id->getText().c_str());
+                assert(symbol); /* TODO: don't assert, check! */
+
+                **resultPtr = (AstStatement){
+                    .nextStatement = 0,
+                    .type = STATEMENT_Assign,
+                    .asAssign = {
+                        .symbol = symbol->id,
+                        .expr = 0, /* TODO */
+                    },
+                };
             }
             else if (base->readStmt()) {
-                type = STATEMENT_Read;
+                **resultPtr = (AstStatement){
+                    .nextStatement = 0,
+                    .type = STATEMENT_Read,
+                    .asRead = 0, /* TODO */
+                };
             }
             else if (base->writeStmt()) {
-                type = STATEMENT_Write;
+                **resultPtr = (AstStatement){
+                    .nextStatement = 0,
+                    .type = STATEMENT_Write,
+                    .asWrite = 0, /* TODO */
+                };
             }
             else if (base->returnStmt()) {
-                type = STATEMENT_Return;
+                **resultPtr = (AstStatement){
+                    .nextStatement = 0,
+                    .type = STATEMENT_Return,
+                    .asReturn = 0, /* TODO */
+                };
             }
             else InvalidCodePath;
 
-            *ResultPtr = makeStatement(type);
-            ResultPtr = &(**ResultPtr).nextStatement;
+            resultPtr = &(**resultPtr).nextStatement;
         }
         else if (stmt->ifStmt()) {
-            TINYParser::IfStmtContext *ifStmt = stmt->ifStmt();
+            IfStmtContext *ifStmt = stmt->ifStmt();
 
             cchar *blockName = makeBlockName(program);
             SymbolTable *ifScope = openNewScope(program, blockName);
-            AstRootStatement *ifRoot = makeRootStatement();
+            *resultPtr = makeStatement(STATEMENT_Root);
 
             addDeclarations(program, ifStmt->decl());
 
-            TINYParser::StmtListContext *stmtList = ifStmt->stmtList();
-            ifRoot->root = (AstRoot *)malloc(sizeof *ifRoot->root);
-            *ifRoot->root = (AstRoot){
+            StmtListContext *stmtList = ifStmt->stmtList();
+            (**resultPtr).asRoot = (AstRoot *)malloc(sizeof (AstRoot));
+            *(**resultPtr).asRoot = (AstRoot){
                 .type = ROOT_If,
                 .symbols = ifScope,
                 .comparison = 0, /* TODO: this */
                 .firstStatement = addStatements(program, stmtList),
             };
 
-            *ResultPtr = &ifRoot->header;
-            ResultPtr = &(**ResultPtr).nextStatement;
+            resultPtr = &(**resultPtr).nextStatement;
             closeScope(program);
 
-            TINYParser::ElsePartContext *elseStmt = ifStmt->elsePart();
+            ElsePartContext *elseStmt = ifStmt->elsePart();
             if (!elseStmt->empty()) {
                 cchar *blockName = makeBlockName(program);
                 SymbolTable *elseScope = openNewScope(program, blockName);
-                AstRootStatement *elseRoot = makeRootStatement();
+                *resultPtr = makeStatement(STATEMENT_Root);
 
                 addDeclarations(program, elseStmt->decl());
 
-                TINYParser::StmtListContext *stmtList = elseStmt->stmtList();
-                elseRoot->root = (AstRoot *)malloc(sizeof *elseRoot->root);
-                *elseRoot->root = (AstRoot){
+                StmtListContext *stmtList = elseStmt->stmtList();
+                (**resultPtr).asRoot = (AstRoot *)malloc(sizeof (AstRoot));
+                *(**resultPtr).asRoot = (AstRoot){
                     .type = ROOT_Else,
                     .symbols = elseScope,
                     .comparison = 0, /* TODO: this */
                     .firstStatement = addStatements(program, stmtList),
                 };
 
-                *ResultPtr = &elseRoot->header;
-                ResultPtr = &(**ResultPtr).nextStatement;
+                resultPtr = &(**resultPtr).nextStatement;
                 closeScope(program);
             }
         }
         else if (stmt->whileStmt()) {
-            TINYParser::WhileStmtContext *whileStmt = stmt->whileStmt();
+            WhileStmtContext *whileStmt = stmt->whileStmt();
 
             cchar *blockName = makeBlockName(program);
             SymbolTable *whileScope = openNewScope(program, blockName);
-            AstRootStatement *whileRoot = makeRootStatement();
+            *resultPtr = makeStatement(STATEMENT_Root);
 
             addDeclarations(program, whileStmt->decl());
 
-            TINYParser::StmtListContext *stmtList = whileStmt->stmtList();
-            whileRoot->root = (AstRoot *)malloc(sizeof *whileRoot->root);
-            *whileRoot->root = (AstRoot){
+            StmtListContext *stmtList = whileStmt->stmtList();
+            (**resultPtr).asRoot = (AstRoot *)malloc(sizeof (AstRoot));
+            *(**resultPtr).asRoot = (AstRoot){
                 .type = ROOT_While,
                 .symbols = whileScope,
                 .comparison = 0, /* TODO: this */
                 .firstStatement = addStatements(program, stmtList),
             };
 
-            *ResultPtr = &whileRoot->header;
-            ResultPtr = &(**ResultPtr).nextStatement;
+            resultPtr = &(**resultPtr).nextStatement;
             closeScope(program);
         }
         else InvalidCodePath;
@@ -218,7 +255,7 @@ AstStatement *addStatements(Program *program, TINYParser::StmtListContext *stmtL
         stmtList = stmtList->stmtList();
     }
 
-    return Result;
+    return result;
 }
 
 void freeRoot(AstRoot *root) {
@@ -230,8 +267,7 @@ void freeRoot(AstRoot *root) {
 
         /* TODO: free statement, if it's a root, recurs into it */
         if (statement->type == STATEMENT_Root) {
-            AstRootStatement *asRoot = (AstRootStatement *)statement;
-            freeRoot(asRoot->root);
+            freeRoot(statement->asRoot);
         }
 
         free((void *) statement);
@@ -241,7 +277,7 @@ void freeRoot(AstRoot *root) {
     free((void *)root);
 }
 
-AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar *id) {
+AstRoot *makeFuncRoot(Program *program, FuncDeclContext *ctx, cchar *id) {
     assert(program);
     assert(ctx);
     assert(id);
@@ -260,9 +296,9 @@ AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar 
      * Parameters
      */
 
-    TINYParser::ParamDeclListContext *paramList = ctx->paramDeclList();
+    ParamDeclListContext *paramList = ctx->paramDeclList();
     if (!paramList->empty()) {
-        TINYParser::ParamDeclContext *param = paramList->paramDecl();
+        ParamDeclContext *param = paramList->paramDecl();
 
         char *id = saveString(param->id()->getText().c_str());
         char type = tolower(param->varType()->getText()[0]);
@@ -271,7 +307,7 @@ AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar 
             program->firstError = id;
         }
 
-        TINYParser::ParamDeclTailContext *paramTail = paramList->paramDeclTail();
+        ParamDeclTailContext *paramTail = paramList->paramDeclTail();
         while (!paramTail->empty()) {
             param = paramTail->paramDecl();
 
@@ -291,7 +327,7 @@ AstRoot *makeFuncRoot(Program *program, TINYParser::FuncDeclContext *ctx, cchar 
      * Declarations
      */
 
-    TINYParser::FuncBodyContext *funcBody = ctx->funcBody();
+    FuncBodyContext *funcBody = ctx->funcBody();
     addDeclarations(program, funcBody->decl());
 
     /*
@@ -327,7 +363,7 @@ void freeProgram(Program *program) {
     free((void *)program);
 }
 
-Program *makeProgram(TINYParser::FileContext *ctx) {
+Program *makeProgram(FileContext *ctx) {
     Program *program = (Program *)malloc(sizeof *program);
     *program = (Program){
         .root = (AstRoot){
@@ -344,7 +380,7 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
         .tableStack = {},
     };
 
-    TINYParser::PgmBodyContext *pgmBody = ctx->program()->pgmBody();
+    PgmBodyContext *pgmBody = ctx->program()->pgmBody();
     SymbolTable *scope = openNewScope(program, "GLOBAL");
     program->root.symbols = scope;
 
@@ -360,9 +396,9 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
      * Functions
      */
 
-    TINYParser::FuncDeclarationsContext *funcs = pgmBody->funcDeclarations();
+    FuncDeclarationsContext *funcs = pgmBody->funcDeclarations();
     while (!funcs->empty()) {
-        TINYParser::FuncDeclContext *funcDecl = funcs->funcDecl();
+        FuncDeclContext *funcDecl = funcs->funcDecl();
         assert(funcDecl);
 
         char returnType = tolower(funcDecl->anyType()->getText()[0]);
@@ -375,14 +411,14 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
          */
 
         char *cur = paramTypes;
-        TINYParser::ParamDeclListContext *paramList = funcDecl->paramDeclList();
+        ParamDeclListContext *paramList = funcDecl->paramDeclList();
         if (!paramList->empty()) {
-            TINYParser::ParamDeclContext *param = paramList->paramDecl();
+            ParamDeclContext *param = paramList->paramDecl();
 
             *cur++ = tolower(param->varType()->getText()[0]);
             assert(cur < paramTypes + sizeof paramTypes - 1);
 
-            TINYParser::ParamDeclTailContext *paramTail = paramList->paramDeclTail();
+            ParamDeclTailContext *paramTail = paramList->paramDeclTail();
             while (!paramTail->empty()) {
                 param = paramTail->paramDecl();
 
@@ -406,15 +442,21 @@ Program *makeProgram(TINYParser::FileContext *ctx) {
     return program;
 }
 
+void printExpr(AstExpr *expr) {
+    printf("-- TODO: expr --");
+};
+
 void printRoot(AstRoot *);
 void printStatement(AstStatement *statement, cchar *indent) {
     switch (statement->type) {
     case STATEMENT_Root:
-        printRoot(((AstRootStatement *)statement)->root);
+        printRoot(statement->asRoot);
         break;
 
     case STATEMENT_Assign:
-        printf("%s-- TODO: Assign\n", indent);
+        printf("%s%s := ", indent, statement->asAssign.symbol);
+        printExpr(statement->asAssign.expr);
+        printf(";\n");
         break;
 
     case STATEMENT_Read:
@@ -549,7 +591,7 @@ int main(int argc, char **argv) {
         CommonTokenStream tokenStream(&lexer);
         TINYParser parser(&tokenStream);
 
-        TINYParser::FileContext *fileCtx = parser.file();
+        FileContext *fileCtx = parser.file();
         Program *program = makeProgram(fileCtx);
         printRoot(&program->root);
 
