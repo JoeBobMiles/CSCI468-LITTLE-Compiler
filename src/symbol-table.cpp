@@ -108,6 +108,18 @@ SymbolEntry *addVar(SymbolTable *table, cchar *id, cchar type, cchar *value) {
     return addSymbol(table, &symbol);
 }
 
+SymbolEntry *addParam(SymbolTable *table, cchar *id, cchar type) {
+    SymbolEntry symbol = {
+        .id = id,
+        .symbolType = 'p',
+        .logicalType = type,
+        .value = 0,
+        .root = 0,
+    };
+
+    return addSymbol(table, &symbol);
+}
+
 SymbolEntry *addFunc(SymbolTable *table, cchar *id, cchar returnType, cchar *paramTypes, AstRoot *root) {
     SymbolEntry symbol = {
         .id = id,

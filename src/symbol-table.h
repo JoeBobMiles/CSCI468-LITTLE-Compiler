@@ -28,6 +28,7 @@ void initSymbolTable(SymbolTable *table, cchar *name, u32 size);
 void deinitSymbolTable(SymbolTable *table);
 
 SymbolEntry *addVar(SymbolTable *table, cchar *id, cchar type, cchar *value);
+SymbolEntry *addParam(SymbolTable *table, cchar *id, cchar type);
 SymbolEntry *addFunc(SymbolTable *table, cchar *id, cchar returnType, cchar *paramTypes, AstRoot *root);
 
 SymbolEntry *getSymbol(SymbolTable *table, cchar *id);

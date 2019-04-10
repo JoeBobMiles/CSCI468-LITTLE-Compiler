@@ -547,7 +547,7 @@ AstRoot *makeFuncRoot(Program *program, FuncDeclContext *ctx, cchar *id) {
         char *id = saveString(param->id()->getText().c_str());
         char type = tolower(param->varType()->getText()[0]);
 
-        if (!addVar(scope, id, type, 0) && !program->firstError) {
+        if (!addParam(scope, id, type) && !program->firstError) {
             program->firstError = id;
         }
 
@@ -558,7 +558,7 @@ AstRoot *makeFuncRoot(Program *program, FuncDeclContext *ctx, cchar *id) {
             id = saveString(param->id()->getText().c_str());
             type = tolower(param->varType()->getText()[0]);
 
-            if (!addVar(scope, id, type, 0) && !program->firstError) {
+            if (!addParam(scope, id, type) && !program->firstError) {
                 program->firstError = id;
             }
 
@@ -792,14 +792,14 @@ void printRoot(Program *program, AstRoot *root) {
         break;
 
     case ROOT_Function: {
-        bool firstParam = true;
+        cchar *prefix = "";
         cchar *funcName = symbols->name;
 
         //SymbolEntry *symbol = findDecl(program, funcName);
         //assert(symbol); /* TODO: don't assert, check! */
 
         //cchar *type = typeString(symbol->logicalType);
-        cchar *type = "<return type>";
+        cchar *type = "<return type>"; /* TODO */
 
         printf("%sFUNCTION %s %s(", indent, type, funcName);
         for (u32 i = 0; i < symbols->count; ++i) {
@@ -807,13 +807,9 @@ void printRoot(Program *program, AstRoot *root) {
             SymbolEntry entry = symbols->data[index];
 
             if (entry.symbolType == 'p') {
-                if (firstParam) {
-                    printf("%s %s", typeString(entry.logicalType), entry.id);
-                    firstParam = false;
-                }
-                else {
-                    printf(", %s %s", typeString(entry.logicalType), entry.id);
-                }
+                cchar *type = typeString(entry.logicalType);
+                printf("%s%s %s", prefix, type, entry.id);
+                prefix = ", ";
             }
         }
         printf(")\n");
