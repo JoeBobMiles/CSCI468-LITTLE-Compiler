@@ -22,6 +22,7 @@
 #include <string>
 
 using namespace antlr4;
+using namespace antlr4::tree;
 using namespace std;
 
 static inline
@@ -33,7 +34,7 @@ cchar *typeString(char type) {
     case 'f': result = "FLOAT"; break;
     case 'v': result = "VOID"; break;
     case 's': result = "STRING"; break;
-    default: InvalidCodePath;
+    InvalidDefaultCase;
     }
 
     return result;
@@ -76,10 +77,15 @@ SymbolEntry *findDecl(Program *program, cchar *id) {
 }
 
 static inline
-cchar *makeBlockName(Program *program) {
+cchar *getNewBlockName(Program *program) {
     static char buffer[256];
     snprintf(buffer, sizeof buffer, "BLOCK %d", ++program->blockCount);
     return buffer;
+}
+
+static inline
+u32 getNewTempNumber(Program *program) {
+    return program->tempCount++;
 }
 
 static inline
@@ -133,6 +139,196 @@ void addDeclarations(Program *program, DeclContext *decl) {
     }
 }
 
+static AstExpr *astFromExprPrefix(Program *, ExprPrefixContext *);
+static AstExpr *astFromFactor(Program *, FactorContext *);
+
+static inline
+AstExpr *_astFromExpr(Program *program, ExprPrefixContext *prefix, FactorContext *factor) {
+    assert(prefix);
+    assert(factor);
+
+    AstExpr *result = 0;
+
+    if (!prefix->empty()) {
+        ExprType type = EXPR_Null;
+
+        if (prefix->addop()->PLUS()) {
+            type = EXPR_Addition;
+        }
+        else {
+            assert(prefix->addop()->MINUS());
+            type = EXPR_Subtraction;
+        }
+
+        result = (AstExpr *)malloc(sizeof *result);
+        *result = (AstExpr){
+            .type = type,
+            .tempNumber = getNewTempNumber(program),
+            .asBinaryOp = {
+                .leftChild = astFromExprPrefix(program, prefix),
+                .rightChild = astFromFactor(program, factor),
+            },
+        };
+    }
+    else {
+        result = astFromFactor(program, factor);
+    }
+
+    return result;
+}
+
+static AstExpr *astFromFactorPrefix(Program *, FactorPrefixContext *);
+static AstExpr *astFromPostfixExpr(Program *, PostfixExprContext *);
+
+static inline
+AstExpr *_astFromFactor(Program *program, FactorPrefixContext *prefix, PostfixExprContext *postfix) {
+    assert(prefix);
+    assert(postfix);
+
+    AstExpr *result = 0;
+
+    if (!prefix->empty()) {
+        ExprType type = EXPR_Null;
+
+        if (prefix->mulop()->STAR()) {
+            type = EXPR_Multiplication;
+        }
+        else {
+            assert(prefix->mulop()->SLASH());
+            type = EXPR_Division;
+        }
+
+        result = (AstExpr *)malloc(sizeof *result);
+        *result = (AstExpr){
+            .type = type,
+            .tempNumber = getNewTempNumber(program),
+            .asBinaryOp = {
+                .leftChild = astFromFactorPrefix(program, prefix),
+                .rightChild = astFromPostfixExpr(program, postfix),
+            },
+        };
+    }
+    else {
+        result = astFromPostfixExpr(program, postfix);
+    }
+
+    return result;
+}
+
+static
+AstExpr *astFromExprPrefix(Program *program, ExprPrefixContext *prefix) {
+    assert(program);
+    assert(prefix);
+
+    ExprPrefixContext *subPrefix = prefix->exprPrefix();
+    FactorContext *factor = prefix->factor();
+    return _astFromExpr(program, subPrefix, factor);
+}
+
+AstExpr *astFromExpr(Program *, ExprContext *);
+
+static
+AstExpr *astFromPostfixExpr(Program *program, PostfixExprContext *postfix) {
+    assert(program);
+    assert(postfix);
+
+    AstExpr *result = 0;
+
+    if (postfix->primary()) {
+        PrimaryContext *primary = postfix->primary();
+
+        if (primary->expr()) {
+            result = astFromExpr(program, primary->expr());
+        }
+        else {
+            result = (AstExpr *)malloc(sizeof *result);
+            *result = (AstExpr){
+                .type = EXPR_Null, /* to be filled in later */
+                .tempNumber = getNewTempNumber(program),
+                .asTerminal = {
+                    .nextParam = 0, /* not needed here */
+                    .text = 0, /* to be filled in later */
+                },
+            };
+
+            if (primary->id()) {
+                IdContext *id = primary->id();
+
+                SymbolEntry *symbol = findDecl(program, id->getText().c_str());
+                assert(symbol); /* TODO: don't assert, check! */
+
+                result->type = EXPR_Symbol;
+                result->asTerminal.text = symbol->id;
+            }
+            else if (primary->INTLITERAL()) {
+                TerminalNode *intLiteral = primary->INTLITERAL();
+                char *text = saveString(intLiteral->getText().c_str());
+
+                result->type = EXPR_IntLiteral;
+                result->asTerminal.text = text;
+            }
+            else if (primary->FLOATLITERAL()) {
+                TerminalNode *floatLiteral = primary->FLOATLITERAL();
+                char *text = saveString(floatLiteral->getText().c_str());
+
+                result->type = EXPR_FloatLiteral;
+                result->asTerminal.text = text;
+            }
+            else { InvalidCodePath; }
+        }
+    }
+    else {
+        CallExprContext *call = postfix->callExpr();
+        assert(call);
+
+        result = (AstExpr *)malloc(sizeof *result);
+        *result = (AstExpr){
+            .type = EXPR_Function,
+            .tempNumber = getNewTempNumber(program),
+            .asFuncCall = {
+                /* TODO: pull function name out of scope */
+                .functionName = saveString(call->id()->getText().c_str()),
+                /* TODO: take params */
+                .firstParam = 0,
+            },
+        };
+    }
+
+    return result;
+}
+
+static
+AstExpr *astFromFactorPrefix(Program *program, FactorPrefixContext *prefix) {
+    assert(program);
+    assert(prefix);
+
+    FactorPrefixContext *subPrefix = prefix->factorPrefix();
+    PostfixExprContext *postfix = prefix->postfixExpr();
+
+    return _astFromFactor(program, subPrefix, postfix);
+}
+
+static
+AstExpr *astFromFactor(Program *program, FactorContext *factor) {
+    assert(program);
+    assert(factor);
+
+    FactorPrefixContext *prefix = factor->factorPrefix();
+    PostfixExprContext *postfix = factor->postfixExpr();
+
+    return _astFromFactor(program, prefix, postfix);
+}
+
+AstExpr *astFromExpr(Program *program, ExprContext *expr) {
+    assert(program);
+    assert(expr);
+
+    ExprPrefixContext *prefix = expr->exprPrefix();
+    FactorContext *factor = expr->factor();
+
+    return _astFromExpr(program, prefix, factor);
+}
+
 AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
     //SymbolTable *scope = getScope(program);
     AstStatement *result = 0;
@@ -149,6 +345,7 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
                 AssignStmtContext *assignStmt = base->assignStmt();
                 AssignExprContext *assignExpr = assignStmt->assignExpr();
                 IdContext *id = assignExpr->id();
+                ExprContext *expr = assignExpr->expr();
 
                 SymbolEntry *symbol = findDecl(program, id->getText().c_str());
                 assert(symbol); /* TODO: don't assert, check! */
@@ -158,7 +355,7 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
                     .type = STATEMENT_Assign,
                     .asAssign = {
                         .symbol = symbol->id,
-                        .expr = 0, /* TODO */
+                        .expr = astFromExpr(program, expr),
                     },
                 };
             }
@@ -183,14 +380,14 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
                     .asReturn = 0, /* TODO */
                 };
             }
-            else InvalidCodePath;
+            else { InvalidCodePath; }
 
             resultPtr = &(**resultPtr).nextStatement;
         }
         else if (stmt->ifStmt()) {
             IfStmtContext *ifStmt = stmt->ifStmt();
 
-            cchar *blockName = makeBlockName(program);
+            cchar *blockName = getNewBlockName(program);
             SymbolTable *ifScope = openNewScope(program, blockName);
             *resultPtr = makeStatement(STATEMENT_Root);
 
@@ -210,7 +407,7 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
 
             ElsePartContext *elseStmt = ifStmt->elsePart();
             if (!elseStmt->empty()) {
-                cchar *blockName = makeBlockName(program);
+                cchar *blockName = getNewBlockName(program);
                 SymbolTable *elseScope = openNewScope(program, blockName);
                 *resultPtr = makeStatement(STATEMENT_Root);
 
@@ -232,7 +429,7 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
         else if (stmt->whileStmt()) {
             WhileStmtContext *whileStmt = stmt->whileStmt();
 
-            cchar *blockName = makeBlockName(program);
+            cchar *blockName = getNewBlockName(program);
             SymbolTable *whileScope = openNewScope(program, blockName);
             *resultPtr = makeStatement(STATEMENT_Root);
 
@@ -250,12 +447,45 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
             resultPtr = &(**resultPtr).nextStatement;
             closeScope(program);
         }
-        else InvalidCodePath;
+        else { InvalidCodePath; }
 
         stmtList = stmtList->stmtList();
     }
 
     return result;
+}
+
+void freeExpr(AstExpr *expr) {
+    switch (expr->type) {
+    case EXPR_Addition:
+    case EXPR_Subtraction:
+    case EXPR_Multiplication:
+    case EXPR_Division:
+    case EXPR_LessThan:
+    case EXPR_GreaterThan:
+    case EXPR_Equal:
+    case EXPR_NotEqual:
+    case EXPR_LessThanOrEqual:
+    case EXPR_GreaterThanOrEqual:
+        freeExpr(expr->asBinaryOp.leftChild);
+        freeExpr(expr->asBinaryOp.rightChild);
+        free((void *)expr);
+        break;
+
+    case EXPR_IntLiteral:
+    case EXPR_FloatLiteral:
+    case EXPR_StringLiteral:
+    case EXPR_Symbol:
+        free((void *)expr);
+        break;
+
+    case EXPR_Function:
+        /* TODO: free params */
+        free((void *)expr);
+        break;
+
+    case EXPR_Null: InvalidCodePath;
+    }
 }
 
 void freeRoot(AstRoot *root) {
@@ -266,8 +496,16 @@ void freeRoot(AstRoot *root) {
         AstStatement *nextStatement = statement->nextStatement;
 
         /* TODO: free statement, if it's a root, recurs into it */
-        if (statement->type == STATEMENT_Root) {
+        switch (statement->type) {
+        case STATEMENT_Root:
             freeRoot(statement->asRoot);
+            break;
+
+        case STATEMENT_Assign:
+            freeExpr(statement->asAssign.expr);
+            break;
+
+        default: break; /* TODO: the rest */
         }
 
         free((void *) statement);
@@ -374,6 +612,7 @@ Program *makeProgram(FileContext *ctx) {
         },
         .firstError = 0,
         .blockCount = 0,
+        .tempCount = 0,
         .listCount = 0,
         .stackHead = 0,
         .tableList = {},
@@ -443,7 +682,56 @@ Program *makeProgram(FileContext *ctx) {
 }
 
 void printExpr(AstExpr *expr) {
-    printf("-- TODO: expr --");
+    assert(expr);
+
+    cchar *op = 0;
+
+    switch (expr->type) {
+    case EXPR_Addition:           op = "+";  break;
+    case EXPR_Subtraction:        op = "-";  break;
+    case EXPR_Multiplication:     op = "*";  break;
+    case EXPR_Division:           op = "/";  break;
+    case EXPR_LessThan:           op = "<";  break;
+    case EXPR_GreaterThan:        op = ">";  break;
+    case EXPR_Equal:              op = "=="; break;
+    case EXPR_NotEqual:           op = "!="; break;
+    case EXPR_LessThanOrEqual:    op = "<="; break;
+    case EXPR_GreaterThanOrEqual: op = ">="; break;
+    default: break;
+    }
+
+    switch (expr->type) {
+    case EXPR_Addition:
+    case EXPR_Subtraction:
+    case EXPR_Multiplication:
+    case EXPR_Division:
+    case EXPR_LessThan:
+    case EXPR_GreaterThan:
+    case EXPR_Equal:
+    case EXPR_NotEqual:
+    case EXPR_LessThanOrEqual:
+    case EXPR_GreaterThanOrEqual:
+        assert(op);
+        printf("(");
+        printExpr(expr->asBinaryOp.leftChild);
+        printf(" %s ", op);
+        printExpr(expr->asBinaryOp.rightChild);
+        printf(")");
+        break;
+
+    case EXPR_IntLiteral:
+    case EXPR_FloatLiteral:
+    case EXPR_StringLiteral:
+    case EXPR_Symbol:
+        printf("%s", expr->asTerminal.text);
+        break;
+
+    case EXPR_Function:
+        printf("<Function %s>", expr->asFuncCall.functionName);
+        break;
+
+    case EXPR_Null: InvalidCodePath;
+    }
 };
 
 void printRoot(AstRoot *);
@@ -471,7 +759,7 @@ void printStatement(AstStatement *statement, cchar *indent) {
         printf("%s-- TODO: Return\n", indent);
         break;
 
-    default: InvalidCodePath;
+    InvalidDefaultCase;
     }
 }
 

@@ -5,11 +5,13 @@
 
 #ifdef NDEBUG
 #   define assert(E)
-#   define InvalidCodePath {}
+#   define InvalidCodePath
+#   define InvalidDefaultCase default: break
 #else
 #   include <assert.h>
 #   include <stdlib.h>
 #   define InvalidCodePath abort()
+#   define InvalidDefaultCase default: abort()
 #endif
 
 #include <stdint.h>

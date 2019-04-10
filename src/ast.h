@@ -115,6 +115,7 @@ struct Program {
     cchar *firstError; /* TODO: is this worth it? */
 
     u32 blockCount;
+    u32 tempCount;
 
     size_t listCount;
     size_t stackHead;
