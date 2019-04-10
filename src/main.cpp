@@ -374,10 +374,12 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
                 };
             }
             else if (base->returnStmt()) {
+                ExprContext *expr = base->returnStmt()->expr();
+
                 **resultPtr = (AstStatement){
                     .nextStatement = 0,
                     .type = STATEMENT_Return,
-                    .asReturn = 0, /* TODO */
+                    .asReturn = astFromExpr(program, expr),
                 };
             }
             else { InvalidCodePath; }
@@ -503,6 +505,10 @@ void freeRoot(AstRoot *root) {
 
         case STATEMENT_Assign:
             freeExpr(statement->asAssign.expr);
+            break;
+
+        case STATEMENT_Return:
+            freeExpr(statement->asReturn);
             break;
 
         default: break; /* TODO: the rest */
@@ -734,11 +740,11 @@ void printExpr(AstExpr *expr) {
     }
 };
 
-void printRoot(AstRoot *);
-void printStatement(AstStatement *statement, cchar *indent) {
+void printRoot(Program *, AstRoot *);
+void printStatement(Program *program, AstStatement *statement, cchar *indent) {
     switch (statement->type) {
     case STATEMENT_Root:
-        printRoot(statement->asRoot);
+        printRoot(program, statement->asRoot);
         break;
 
     case STATEMENT_Assign:
@@ -756,14 +762,16 @@ void printStatement(AstStatement *statement, cchar *indent) {
         break;
 
     case STATEMENT_Return:
-        printf("%s-- TODO: Return\n", indent);
+        printf("%sreturn ", indent);
+        printExpr(statement->asReturn);
+        printf(";\n");
         break;
 
     InvalidDefaultCase;
     }
 }
 
-void printRoot(AstRoot *root) {
+void printRoot(Program *program, AstRoot *root) {
     /* 64 levels of indent should be enough for anyone */
     static char indent[64]; /* TODO: de-static-ify this? */
     static char *indentCur = indent;
@@ -785,7 +793,15 @@ void printRoot(AstRoot *root) {
 
     case ROOT_Function: {
         bool firstParam = true;
-        printf("%sFUNCTION %s(", indent, symbols->name);
+        cchar *funcName = symbols->name;
+
+        //SymbolEntry *symbol = findDecl(program, funcName);
+        //assert(symbol); /* TODO: don't assert, check! */
+
+        //cchar *type = typeString(symbol->logicalType);
+        cchar *type = "<return type>";
+
+        printf("%sFUNCTION %s %s(", indent, type, funcName);
         for (u32 i = 0; i < symbols->count; ++i) {
             u32 index = symbols->order[i];
             SymbolEntry entry = symbols->data[index];
@@ -841,7 +857,7 @@ void printRoot(AstRoot *root) {
         printf("\n%s-- Main:\n\n", indent);
         SymbolEntry *mainEntry = getSymbol(symbols, "main");
         if (mainEntry && mainEntry->symbolType == 'f') {
-            printRoot(mainEntry->root);
+            printRoot(program, mainEntry->root);
         }
 
         printf("\n%s-- Other Functions:\n\n", indent);
@@ -851,7 +867,7 @@ void printRoot(AstRoot *root) {
 
             /* ...but skip main() */
             if (entry->symbolType == 'f' && !stringsAreEqual(entry->id, "main")) {
-                printRoot(entry->root);
+                printRoot(program, entry->root);
             }
         }
     }
@@ -860,7 +876,7 @@ void printRoot(AstRoot *root) {
 
         AstStatement *statement = root->firstStatement;
         while (statement) {
-            printStatement(statement, indent);
+            printStatement(program, statement, indent);
 
             statement = statement->nextStatement;
         }
@@ -881,7 +897,7 @@ int main(int argc, char **argv) {
 
         FileContext *fileCtx = parser.file();
         Program *program = makeProgram(fileCtx);
-        printRoot(&program->root);
+        printRoot(program, &program->root);
 
         file.close();
 
