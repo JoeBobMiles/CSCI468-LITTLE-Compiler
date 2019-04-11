@@ -53,8 +53,9 @@ SymbolTable *openNewScope(Program *program, cchar *scopeName) {
 }
 
 static inline
-void openNewScope(Program *program, string scopeName) {
-    openNewScope(program, scopeName.c_str());
+void openScope(Program *program, SymbolTable *scope) {
+    assert(program->listCount < MAX_TABLES);
+    program->tableStack[program->stackHead++] = scope;
 }
 
 static inline
@@ -396,14 +397,18 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
             addDeclarations(program, ifStmt->decl());
 
             StmtListContext *stmtList = ifStmt->stmtList();
-            (**resultPtr).asRoot = (AstRoot *)malloc(sizeof (AstRoot));
-            *(**resultPtr).asRoot = (AstRoot){
-                .type = ROOT_If,
-                .symbols = ifScope,
+            AstIfRoot *ifRoot = (AstIfRoot *)malloc(sizeof *ifRoot);
+            *ifRoot = (AstIfRoot){
+                .header = {
+                    .type = ROOT_If,
+                    .symbols = ifScope,
+                    .firstStatement = addStatements(program, stmtList),
+                },
                 .comparison = 0, /* TODO: this */
-                .firstStatement = addStatements(program, stmtList),
+                .elsePart = 0,
             };
 
+            (**resultPtr).asRoot = (AstRoot *)ifRoot;
             resultPtr = &(**resultPtr).nextStatement;
             closeScope(program);
 
@@ -411,20 +416,18 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
             if (!elseStmt->empty()) {
                 cchar *blockName = getNewBlockName(program);
                 SymbolTable *elseScope = openNewScope(program, blockName);
-                *resultPtr = makeStatement(STATEMENT_Root);
 
                 addDeclarations(program, elseStmt->decl());
 
                 StmtListContext *stmtList = elseStmt->stmtList();
-                (**resultPtr).asRoot = (AstRoot *)malloc(sizeof (AstRoot));
-                *(**resultPtr).asRoot = (AstRoot){
+                AstRoot *elseRoot = (AstRoot *)malloc(sizeof *ifRoot);
+                *elseRoot = (AstRoot){
                     .type = ROOT_Else,
                     .symbols = elseScope,
-                    .comparison = 0, /* TODO: this */
                     .firstStatement = addStatements(program, stmtList),
                 };
 
-                resultPtr = &(**resultPtr).nextStatement;
+                ifRoot->elsePart = elseRoot;
                 closeScope(program);
             }
         }
@@ -438,14 +441,17 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
             addDeclarations(program, whileStmt->decl());
 
             StmtListContext *stmtList = whileStmt->stmtList();
-            (**resultPtr).asRoot = (AstRoot *)malloc(sizeof (AstRoot));
-            *(**resultPtr).asRoot = (AstRoot){
-                .type = ROOT_While,
-                .symbols = whileScope,
-                .comparison = 0, /* TODO: this */
-                .firstStatement = addStatements(program, stmtList),
+            AstWhileRoot *whileRoot = (AstWhileRoot *)malloc(sizeof *whileRoot);
+            *whileRoot = (AstWhileRoot){
+                .header = {
+                    .type = ROOT_While,
+                    .symbols = whileScope,
+                    .firstStatement = addStatements(program, stmtList),
+                },
+                .comparison = 0,
             };
 
+            (**resultPtr).asRoot = (AstRoot *)whileRoot;
             resultPtr = &(**resultPtr).nextStatement;
             closeScope(program);
         }
@@ -497,7 +503,6 @@ void freeRoot(AstRoot *root) {
     while (statement) {
         AstStatement *nextStatement = statement->nextStatement;
 
-        /* TODO: free statement, if it's a root, recurs into it */
         switch (statement->type) {
         case STATEMENT_Root:
             freeRoot(statement->asRoot);
@@ -518,6 +523,13 @@ void freeRoot(AstRoot *root) {
         statement = nextStatement;
     }
 
+    if (root->type == ROOT_If) {
+        AstRoot *elseRoot = ((AstIfRoot *)root)->elsePart;
+        if (elseRoot) {
+            freeRoot(elseRoot);
+        }
+    }
+
     free((void *)root);
 }
 
@@ -532,7 +544,6 @@ AstRoot *makeFuncRoot(Program *program, FuncDeclContext *ctx, cchar *id) {
     *root = (AstRoot){
         .type = ROOT_Function,
         .symbols = scope,
-        .comparison = 0, /* TODO: this */
         .firstStatement = 0,
     };
 
@@ -613,7 +624,6 @@ Program *makeProgram(FileContext *ctx) {
         .root = (AstRoot){
             .type = ROOT_Global,
             .symbols = 0,
-            .comparison = 0,
             .firstStatement = 0,
         },
         .firstError = 0,
@@ -718,6 +728,7 @@ void printExpr(AstExpr *expr) {
     case EXPR_LessThanOrEqual:
     case EXPR_GreaterThanOrEqual:
         assert(op);
+        //printf("(%d: ", expr->tempNumber);
         printf("(");
         printExpr(expr->asBinaryOp.leftChild);
         printf(" %s ", op);
@@ -776,11 +787,13 @@ void printRoot(Program *program, AstRoot *root) {
     static char indent[64]; /* TODO: de-static-ify this? */
     static char *indentCur = indent;
 
+    assert(program);
+    assert(root);
     assert(indentCur >= indent);
-
     *indentCur = 0; /* cap the current indent amount */
 
-    SymbolTable *symbols = root->symbols;
+    SymbolTable *scope = root->symbols;
+    openScope(program, scope);
 
     switch (root->type) {
     case ROOT_Null:
@@ -791,20 +804,23 @@ void printRoot(Program *program, AstRoot *root) {
         printf("%sPROGRAM root\n", indent);
         break;
 
+    case ROOT_Else:
+        printf("%sELSE\n", indent);
+        break;
+
     case ROOT_Function: {
         cchar *prefix = "";
-        cchar *funcName = symbols->name;
+        cchar *funcName = scope->name;
 
-        //SymbolEntry *symbol = findDecl(program, funcName);
-        //assert(symbol); /* TODO: don't assert, check! */
+        SymbolEntry *symbol = findDecl(program, funcName);
+        assert(symbol); /* TODO: don't assert, check! */
 
-        //cchar *type = typeString(symbol->logicalType);
-        cchar *type = "<return type>"; /* TODO */
+        cchar *type = typeString(symbol->logicalType);
 
         printf("%sFUNCTION %s %s(", indent, type, funcName);
-        for (u32 i = 0; i < symbols->count; ++i) {
-            u32 index = symbols->order[i];
-            SymbolEntry entry = symbols->data[index];
+        for (u32 i = 0; i < scope->count; ++i) {
+            u32 index = scope->order[i];
+            SymbolEntry entry = scope->data[index];
 
             if (entry.symbolType == 'p') {
                 cchar *type = typeString(entry.logicalType);
@@ -812,29 +828,30 @@ void printRoot(Program *program, AstRoot *root) {
                 prefix = ", ";
             }
         }
+        printf(")\n%sBEGIN\n", indent);
+    } break;
+
+    case ROOT_If: {
+        //AstIfRoot *ifRoot = (AstIfRoot *)root;
+        printf("%sIF (", indent);
+        printf("<TODO: condition>");
         printf(")\n");
-    }   break;
+    } break;
 
-    case ROOT_If:
-        printf("%s<TODO: IF>\n", indent);
-        break;
-
-    case ROOT_Else:
-        printf("%s<TODO: ELSE>\n", indent);
-        break;
-
-    case ROOT_While:
-        printf("%s<TODO: WHILE>\n", indent);
-        break;
+    case ROOT_While: {
+        //AstWhileRoot *whileRoot = (AstWhileRoot *)root;
+        printf("%sWHILE (", indent);
+        printf("<TODO: condition>");
+        printf(")\n");
+    } break;
     }
 
-    printf("%sBEGIN\n", indent);
     *indentCur++ = '\t';
 
     printf("%s-- Variables:\n\n", indent);
-    for (u32 i = 0; i < symbols->count; ++i) {
-        u32 index = symbols->order[i];
-        SymbolEntry entry = symbols->data[index];
+    for (u32 i = 0; i < scope->count; ++i) {
+        u32 index = scope->order[i];
+        SymbolEntry entry = scope->data[index];
 
         if (entry.symbolType == 'v') {
             cchar *type = typeString(entry.logicalType);
@@ -851,15 +868,15 @@ void printRoot(Program *program, AstRoot *root) {
         /* print out main() first, because I think the pseudo-asm goes
          * top-to-bottom, and we want to hit main() first */
         printf("\n%s-- Main:\n\n", indent);
-        SymbolEntry *mainEntry = getSymbol(symbols, "main");
+        SymbolEntry *mainEntry = getSymbol(scope, "main");
         if (mainEntry && mainEntry->symbolType == 'f') {
             printRoot(program, mainEntry->root);
         }
 
         printf("\n%s-- Other Functions:\n\n", indent);
-        for (u32 i = 0; i < symbols->count; ++i) {
-            u32 index = symbols->order[i];
-            SymbolEntry *entry = symbols->data + index;
+        for (u32 i = 0; i < scope->count; ++i) {
+            u32 index = scope->order[i];
+            SymbolEntry *entry = scope->data + index;
 
             /* ...but skip main() */
             if (entry->symbolType == 'f' && !stringsAreEqual(entry->id, "main")) {
@@ -879,7 +896,32 @@ void printRoot(Program *program, AstRoot *root) {
     }
 
     *--indentCur = '\0';
-    printf("%sEND\n", indent);
+
+    switch (root->type) {
+    default:
+        printf("%sEND\n", indent);
+        break;
+
+    case ROOT_Else:
+        printf("%sENDIF\n", indent);
+        break;
+
+    case ROOT_If: {
+        AstRoot *elseRoot = ((AstIfRoot *)root)->elsePart;
+        if (elseRoot) {
+            printRoot(program, elseRoot);
+        }
+        else {
+            printf("%sENDIF\n", indent);
+        }
+    } break;
+
+    case ROOT_While:
+        printf("%sENDWHILE\n", indent);
+        break;
+    }
+
+    closeScope(program);
 }
 
 int main(int argc, char **argv) {
@@ -902,4 +944,6 @@ int main(int argc, char **argv) {
     }
 
     deinitStringTable(globalStringTable);
+
+    return 0;
 }

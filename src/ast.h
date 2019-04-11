@@ -106,8 +106,18 @@ enum RootType {
 struct AstRoot {
     RootType type;
     SymbolTable *symbols;
-    AstExpr *comparison;
     AstStatement *firstStatement;
+};
+
+struct AstWhileRoot {
+    AstRoot header;
+    AstExpr *comparison;
+};
+
+struct AstIfRoot {
+    AstRoot header;
+    AstExpr *comparison;
+    AstRoot *elsePart;
 };
 
 struct Program {
