@@ -373,6 +373,46 @@ AstExpr *astFromExpr(Program *program, ExprContext *expr) {
     return _astFromExpr(program, prefix, factor);
 }
 
+AstExpr *astFromCond(Program *program, CondContext *cond) {
+    CompopContext *op = cond->compop();
+    ExprContext *left = cond->expr(0);
+    ExprContext *right = cond->expr(1);
+
+    ExprType type = EXPR_Null;
+
+    if (op->LT()) {
+        type = EXPR_LessThan;
+    }
+    else if (op->GT()) {
+        type = EXPR_GreaterThan;
+    }
+    else if (op->EQUAL()) {
+        type = EXPR_Equal;
+    }
+    else if (op->NOTEQ()) {
+        type = EXPR_NotEqual;
+    }
+    else if (op->LTEQ()) {
+        type = EXPR_LessThanOrEqual;
+    }
+    else if (op->GTEQ()) {
+        type = EXPR_GreaterThanOrEqual;
+    }
+    else { InvalidCodePath; }
+
+    AstExpr *result = (AstExpr *)malloc(sizeof *result);
+    *result = (AstExpr){
+        .type = type,
+        .tempNumber = getNewTempNumber(program),
+        .asBinaryOp = {
+            .leftChild = astFromExpr(program, left),
+            .rightChild = astFromExpr(program, right),
+        },
+    };
+
+    return result;
+}
+
 AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
     //SymbolTable *scope = getScope(program);
     AstStatement *result = 0;
@@ -451,7 +491,7 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
                     .symbols = ifScope,
                     .firstStatement = addStatements(program, stmtList),
                 },
-                .comparison = 0, /* TODO: this */
+                .comparison = astFromCond(program, ifStmt->cond()),
                 .elsePart = 0,
             };
 
@@ -495,7 +535,7 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
                     .symbols = whileScope,
                     .firstStatement = addStatements(program, stmtList),
                 },
-                .comparison = 0,
+                .comparison = astFromCond(program, whileStmt->cond()),
             };
 
             (**resultPtr).asRoot = (AstRoot *)whileRoot;
@@ -587,10 +627,18 @@ void freeRoot(AstRoot *root) {
     }
 
     if (root->type == ROOT_If) {
-        AstRoot *elseRoot = ((AstIfRoot *)root)->elsePart;
+        AstIfRoot *ifRoot = (AstIfRoot *)root;
+        AstRoot *elseRoot = ifRoot->elsePart;
+
         if (elseRoot) {
             freeRoot(elseRoot);
         }
+
+        freeExpr(ifRoot->comparison);
+    }
+    else if (root->type == ROOT_While) {
+        AstWhileRoot *whileRoot = (AstWhileRoot *)root;
+        freeExpr(whileRoot->comparison);
     }
 
     free((void *)root);
@@ -772,7 +820,7 @@ void printExpr(AstExpr *expr) {
     case EXPR_Division:           op = "/";  break;
     case EXPR_LessThan:           op = "<";  break;
     case EXPR_GreaterThan:        op = ">";  break;
-    case EXPR_Equal:              op = "=="; break;
+    case EXPR_Equal:              op = "="; break;
     case EXPR_NotEqual:           op = "!="; break;
     case EXPR_LessThanOrEqual:    op = "<="; break;
     case EXPR_GreaterThanOrEqual: op = ">="; break;
@@ -888,6 +936,7 @@ void printRoot(Program *program, AstRoot *root) {
 
     case ROOT_Global:
         printf("%sPROGRAM root\n", indent);
+        printf("%sBEGIN\n", indent);
         break;
 
     case ROOT_Else:
@@ -918,17 +967,17 @@ void printRoot(Program *program, AstRoot *root) {
     } break;
 
     case ROOT_If: {
-        //AstIfRoot *ifRoot = (AstIfRoot *)root;
-        printf("%sIF (", indent);
-        printf("<TODO: condition>");
-        printf(")\n");
+        AstIfRoot *ifRoot = (AstIfRoot *)root;
+        printf("%sIF ", indent);
+        printExpr(ifRoot->comparison);
+        printf("\n");
     } break;
 
     case ROOT_While: {
-        //AstWhileRoot *whileRoot = (AstWhileRoot *)root;
-        printf("%sWHILE (", indent);
-        printf("<TODO: condition>");
-        printf(")\n");
+        AstWhileRoot *whileRoot = (AstWhileRoot *)root;
+        printf("%sWHILE ", indent);
+        printExpr(whileRoot->comparison);
+        printf("\n");
     } break;
     }
 
