@@ -86,8 +86,8 @@ struct AstStatement {
             cchar *symbol;
             AstExpr *expr;
         } asAssign;
-        void *asRead;  /* TODO */
-        void *asWrite; /* TODO */
+        AstExpr *asRead;
+        AstExpr *asWrite;
     };
 };
 

@@ -140,8 +140,8 @@ void addDeclarations(Program *program, DeclContext *decl) {
     }
 }
 
-static AstExpr *astFromExprPrefix(Program *, ExprPrefixContext *);
-static AstExpr *astFromFactor(Program *, FactorContext *);
+AstExpr *astFromExprPrefix(Program *, ExprPrefixContext *);
+AstExpr *astFromFactor(Program *, FactorContext *);
 
 static inline
 AstExpr *_astFromExpr(Program *program, ExprPrefixContext *prefix, FactorContext *factor) {
@@ -178,11 +178,12 @@ AstExpr *_astFromExpr(Program *program, ExprPrefixContext *prefix, FactorContext
     return result;
 }
 
-static AstExpr *astFromFactorPrefix(Program *, FactorPrefixContext *);
-static AstExpr *astFromPostfixExpr(Program *, PostfixExprContext *);
+AstExpr *astFromFactorPrefix(Program *, FactorPrefixContext *);
+AstExpr *astFromPostfixExpr(Program *, PostfixExprContext *);
 
 static inline
 AstExpr *_astFromFactor(Program *program, FactorPrefixContext *prefix, PostfixExprContext *postfix) {
+    assert(program);
     assert(prefix);
     assert(postfix);
 
@@ -216,7 +217,52 @@ AstExpr *_astFromFactor(Program *program, FactorPrefixContext *prefix, PostfixEx
     return result;
 }
 
-static
+AstExpr *astFromId(Program *program, IdContext *id) {
+    assert(program);
+    assert(id);
+
+    SymbolEntry *symbol = findDecl(program, id->getText().c_str());
+    assert(symbol); /* TODO: don't assert, check! */
+
+    AstExpr *result = (AstExpr *)malloc(sizeof *result);
+    *result = (AstExpr){
+        .type = EXPR_Symbol,
+        .tempNumber = getNewTempNumber(program),
+        .asTerminal = {
+            .nextParam = 0,
+            .text = symbol->id,
+        }
+    };
+
+    return result;
+}
+
+AstExpr *astFromIdList(Program *program, IdListContext *list) {
+    assert(program);
+    assert(list);
+
+    AstExpr *result = 0;
+    AstExpr **resultPtr = &result;
+
+    IdContext *id = list->id();
+
+    *resultPtr = astFromId(program, id);
+    resultPtr = &(**resultPtr).asTerminal.nextParam;
+
+    IdTailContext *tail = list->idTail();
+    while (!tail->empty()) {
+        id = tail->id();
+
+        *resultPtr = astFromId(program, id);
+        resultPtr = &(**resultPtr).asTerminal.nextParam;
+
+        tail = tail->idTail();
+        assert(tail);
+    }
+
+    return result;
+}
+
 AstExpr *astFromExprPrefix(Program *program, ExprPrefixContext *prefix) {
     assert(program);
     assert(prefix);
@@ -228,7 +274,6 @@ AstExpr *astFromExprPrefix(Program *program, ExprPrefixContext *prefix) {
 
 AstExpr *astFromExpr(Program *, ExprContext *);
 
-static
 AstExpr *astFromPostfixExpr(Program *program, PostfixExprContext *postfix) {
     assert(program);
     assert(postfix);
@@ -298,7 +343,6 @@ AstExpr *astFromPostfixExpr(Program *program, PostfixExprContext *postfix) {
     return result;
 }
 
-static
 AstExpr *astFromFactorPrefix(Program *program, FactorPrefixContext *prefix) {
     assert(program);
     assert(prefix);
@@ -309,7 +353,6 @@ AstExpr *astFromFactorPrefix(Program *program, FactorPrefixContext *prefix) {
     return _astFromFactor(program, subPrefix, postfix);
 }
 
-static
 AstExpr *astFromFactor(Program *program, FactorContext *factor) {
     assert(program);
     assert(factor);
@@ -361,17 +404,21 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
                 };
             }
             else if (base->readStmt()) {
+                ReadStmtContext *readStmt = base->readStmt();
+
                 **resultPtr = (AstStatement){
                     .nextStatement = 0,
                     .type = STATEMENT_Read,
-                    .asRead = 0, /* TODO */
+                    .asRead = astFromIdList(program, readStmt->idList()),
                 };
             }
             else if (base->writeStmt()) {
+                WriteStmtContext *writeStmt = base->writeStmt();
+
                 **resultPtr = (AstStatement){
                     .nextStatement = 0,
                     .type = STATEMENT_Write,
-                    .asWrite = 0, /* TODO */
+                    .asWrite = astFromIdList(program, writeStmt->idList()),
                 };
             }
             else if (base->returnStmt()) {
@@ -464,36 +511,44 @@ AstStatement *addStatements(Program *program, StmtListContext *stmtList) {
 }
 
 void freeExpr(AstExpr *expr) {
-    switch (expr->type) {
-    case EXPR_Addition:
-    case EXPR_Subtraction:
-    case EXPR_Multiplication:
-    case EXPR_Division:
-    case EXPR_LessThan:
-    case EXPR_GreaterThan:
-    case EXPR_Equal:
-    case EXPR_NotEqual:
-    case EXPR_LessThanOrEqual:
-    case EXPR_GreaterThanOrEqual:
-        freeExpr(expr->asBinaryOp.leftChild);
-        freeExpr(expr->asBinaryOp.rightChild);
-        free((void *)expr);
-        break;
+    do {
+        AstExpr *nextToFree = 0;
 
-    case EXPR_IntLiteral:
-    case EXPR_FloatLiteral:
-    case EXPR_StringLiteral:
-    case EXPR_Symbol:
-        free((void *)expr);
-        break;
+        switch (expr->type) {
+        case EXPR_Addition:
+        case EXPR_Subtraction:
+        case EXPR_Multiplication:
+        case EXPR_Division:
+        case EXPR_LessThan:
+        case EXPR_GreaterThan:
+        case EXPR_Equal:
+        case EXPR_NotEqual:
+        case EXPR_LessThanOrEqual:
+        case EXPR_GreaterThanOrEqual:
+            freeExpr(expr->asBinaryOp.leftChild);
+            freeExpr(expr->asBinaryOp.rightChild);
+            free((void *)expr);
+            break;
 
-    case EXPR_Function:
-        /* TODO: free params */
-        free((void *)expr);
-        break;
+        case EXPR_IntLiteral:
+        case EXPR_FloatLiteral:
+        case EXPR_StringLiteral:
+        case EXPR_Symbol:
+            nextToFree = expr->asTerminal.nextParam;
+            free((void *)expr);
+            break;
 
-    case EXPR_Null: InvalidCodePath;
+        case EXPR_Function:
+            /* TODO: free params */
+            free((void *)expr);
+            break;
+
+        case EXPR_Null: InvalidCodePath;
+        }
+
+        expr = nextToFree;
     }
+    while (expr);
 }
 
 void freeRoot(AstRoot *root) {
@@ -514,6 +569,14 @@ void freeRoot(AstRoot *root) {
 
         case STATEMENT_Return:
             freeExpr(statement->asReturn);
+            break;
+
+        case STATEMENT_Read:
+            freeExpr(statement->asRead);
+            break;
+
+        case STATEMENT_Write:
+            freeExpr(statement->asWrite);
             break;
 
         default: break; /* TODO: the rest */
@@ -764,13 +827,36 @@ void printStatement(Program *program, AstStatement *statement, cchar *indent) {
         printf(";\n");
         break;
 
-    case STATEMENT_Read:
-        printf("%s-- TODO: Read\n", indent);
-        break;
+    case STATEMENT_Read: {
+        printf("%sREAD(", indent);
 
-    case STATEMENT_Write:
-        printf("%s-- TODO: Write\n", indent);
+        cchar *prefix = "";
+        AstExpr *expr = statement->asRead;
+        while (expr) {
+            printf(prefix);
+            printExpr(expr);
+            prefix = ", ";
+            expr = expr->asTerminal.nextParam;
+        }
+
+        printf(");\n");
         break;
+    }
+
+    case STATEMENT_Write: {
+        printf("%sWRITE(", indent);
+
+        cchar *prefix = "";
+        AstExpr *expr = statement->asRead;
+        while (expr) {
+            printf(prefix);
+            printExpr(expr);
+            prefix = ", ";
+            expr = expr->asTerminal.nextParam;
+        }
+
+        printf(");\n");
+    } break;
 
     case STATEMENT_Return:
         printf("%sreturn ", indent);
