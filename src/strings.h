@@ -5,7 +5,7 @@
 
 u64 stringLength(cchar *str);
 u64 stringSize(cchar *str);
-void copyString(char *dest, cchar *src);
+u64 copyString(char *dest, cchar *src);
 bool stringsAreEqual(cchar *a, cchar *b);
 void zeroMemory(char *mem, u64 size);
 

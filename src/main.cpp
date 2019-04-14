@@ -1,11 +1,10 @@
 #include "main.h"
 
-#define STEP3_OUTPUT 1
-
 #include "strings.h"
 #include "symbol-table.h"
 #include "ast.h"
 #include "printTINY.h"
+#include "printAsm.h"
 
 #include <antlr4-runtime.h>
 #include <TINYLexer.h>
@@ -43,7 +42,11 @@ int main(int argc, char **argv) {
 
         FileContext *fileCtx = parser.file();
         Program *program = makeProgram(fileCtx);
+#if PRINT_ASM
+        printProgramAsAsm(program);
+#else
         printProgramAsTINY(program);
+#endif
 
         if (file.is_open()) {
             file.close();

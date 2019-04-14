@@ -203,21 +203,12 @@ void printRoot(Program *program, AstRoot *root) {
     }
 
     if (root->type == ROOT_Global) {
-        /* print out main() first, because I think the pseudo-asm goes
-         * top-to-bottom, and we want to hit main() first */
-        printf("\n%s-- Main:\n\n", indent);
-        SymbolEntry *mainEntry = getSymbol(scope, "main");
-        if (mainEntry && mainEntry->symbolType == 'f') {
-            printRoot(program, mainEntry->root);
-        }
-
-        printf("\n%s-- Other Functions:\n\n", indent);
+        printf("\n%s-- Functions:\n\n", indent);
         for (u32 i = 0; i < scope->count; ++i) {
             u32 index = scope->order[i];
             SymbolEntry *entry = scope->data + index;
 
-            /* ...but skip main() */
-            if (entry->symbolType == 'f' && !stringsAreEqual(entry->id, "main")) {
+            if (entry->symbolType == 'f') {
                 printRoot(program, entry->root);
             }
         }

@@ -47,7 +47,10 @@ enum ExprType {
 };
 
 struct AstExpr {
-    ExprType type;
+    u16 type;
+    char logicalType;
+    /* 1B of padding here */
+
     u32 tempNumber; /* non-terminals get a temp number. */
 
     union {

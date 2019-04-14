@@ -130,12 +130,18 @@ AstExpr *_astFromExpr(Program *program, ExprPrefixContext *prefix, FactorContext
         result = (AstExpr *)malloc(sizeof *result);
         *result = (AstExpr){
             .type = type,
+            .logicalType = 0,
             .tempNumber = getNewTempNumber(program),
             .asBinaryOp = {
                 .leftChild = astFromExprPrefix(program, prefix),
                 .rightChild = astFromFactor(program, factor),
             },
         };
+
+        result->logicalType = result->asBinaryOp.leftChild->logicalType;
+        if (result->asBinaryOp.rightChild->logicalType == 'f') {
+            result->logicalType = 'f';
+        }
     }
     else {
         result = astFromFactor(program, factor);
@@ -169,12 +175,18 @@ AstExpr *_astFromFactor(Program *program, FactorPrefixContext *prefix, PostfixEx
         result = (AstExpr *)malloc(sizeof *result);
         *result = (AstExpr){
             .type = type,
+            .logicalType = 0,
             .tempNumber = getNewTempNumber(program),
             .asBinaryOp = {
                 .leftChild = astFromFactorPrefix(program, prefix),
                 .rightChild = astFromPostfixExpr(program, postfix),
             },
         };
+
+        result->logicalType = result->asBinaryOp.leftChild->logicalType;
+        if (result->asBinaryOp.rightChild->logicalType == 'f') {
+            result->logicalType = 'f';
+        }
     }
     else {
         result = astFromPostfixExpr(program, postfix);
@@ -193,6 +205,7 @@ AstExpr *astFromId(Program *program, IdContext *id) {
     AstExpr *result = (AstExpr *)malloc(sizeof *result);
     *result = (AstExpr){
         .type = EXPR_Symbol,
+        .logicalType = symbol->logicalType,
         .tempNumber = getNewTempNumber(program),
         .asTerminal = {
             .nextParam = 0,
@@ -256,6 +269,7 @@ AstExpr *astFromPostfixExpr(Program *program, PostfixExprContext *postfix) {
             result = (AstExpr *)malloc(sizeof *result);
             *result = (AstExpr){
                 .type = EXPR_Null, /* to be filled in later */
+                .logicalType = 0,  /* to be filled in later */
                 .tempNumber = getNewTempNumber(program),
                 .asTerminal = {
                     .nextParam = 0, /* not needed here */
@@ -270,6 +284,7 @@ AstExpr *astFromPostfixExpr(Program *program, PostfixExprContext *postfix) {
                 assert(symbol); /* TODO: don't assert, check! */
 
                 result->type = EXPR_Symbol;
+                result->logicalType = symbol->logicalType;
                 result->asTerminal.text = symbol->id;
             }
             else if (primary->INTLITERAL()) {
@@ -277,6 +292,7 @@ AstExpr *astFromPostfixExpr(Program *program, PostfixExprContext *postfix) {
                 char *text = saveString(intLiteral->getText().c_str());
 
                 result->type = EXPR_IntLiteral;
+                result->logicalType = 'i';
                 result->asTerminal.text = text;
             }
             else if (primary->FLOATLITERAL()) {
@@ -284,6 +300,7 @@ AstExpr *astFromPostfixExpr(Program *program, PostfixExprContext *postfix) {
                 char *text = saveString(floatLiteral->getText().c_str());
 
                 result->type = EXPR_FloatLiteral;
+                result->logicalType = 'f';
                 result->asTerminal.text = text;
             }
             else { InvalidCodePath; }
@@ -296,6 +313,8 @@ AstExpr *astFromPostfixExpr(Program *program, PostfixExprContext *postfix) {
         result = (AstExpr *)malloc(sizeof *result);
         *result = (AstExpr){
             .type = EXPR_Function,
+            /* TODO: pull function return type out of scope */
+            .logicalType = 0,
             .tempNumber = getNewTempNumber(program),
             .asFuncCall = {
                 /* TODO: pull function name out of scope */
@@ -369,12 +388,18 @@ AstExpr *astFromCond(Program *program, CondContext *cond) {
     AstExpr *result = (AstExpr *)malloc(sizeof *result);
     *result = (AstExpr){
         .type = type,
+        .logicalType = 0,
         .tempNumber = getNewTempNumber(program),
         .asBinaryOp = {
             .leftChild = astFromExpr(program, left),
             .rightChild = astFromExpr(program, right),
         },
     };
+
+    result->logicalType = result->asBinaryOp.leftChild->logicalType;
+    if (result->asBinaryOp.rightChild->logicalType == 'f') {
+        result->logicalType = 'f';
+    }
 
     return result;
 }

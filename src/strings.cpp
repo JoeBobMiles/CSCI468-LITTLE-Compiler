@@ -19,14 +19,14 @@ u64 stringSize(cchar *str) {
     return cur - str;
 }
 
-void copyString(char *dest, cchar *src) {
+u64 copyString(char *dest, cchar *src) {
     assert(dest);
     assert(src);
 
-    do {
-        *dest++ = *src;
-    }
-    while (*src++);
+    char *cur = dest;
+    while ((*cur++ = *src++));
+
+    return cur - dest - 1;
 }
 
 bool stringsAreEqual(cchar *a, cchar *b) {

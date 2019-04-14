@@ -1,7 +1,8 @@
 #ifndef main_h
 #define main_h
 
-#define PRINT_INLINE 1
+//#define PRINT_INLINE 1
+#define PRINT_ASM 1
 
 #ifdef NDEBUG
 #   define assert(E)
@@ -10,8 +11,8 @@
 #else
 #   include <assert.h>
 #   include <stdlib.h>
-#   define InvalidCodePath abort()
-#   define InvalidDefaultCase default: abort()
+#   define InvalidCodePath assert(!"Invalid code path.")
+#   define InvalidDefaultCase default: assert(!"Invalid default case."); break
 #endif
 
 #include <stdint.h>
