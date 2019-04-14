@@ -40,17 +40,18 @@ release: cleaner $(target) $(emulator)
 
 $(emulator): $(source_dir)/emulator/emulator.cpp
 	@echo "  CXX   $@"
-	mkdir -p $(dir $@)
+	@mkdir -p $(dir $@)
 	$(CXX) -O2 -o $@ $^
 
 $(target): $(main) $(antlr_objects) $(runtime_objects) $(objects)
 	@echo "  CXX   $@"
-	mkdir -p $(dir $@)
+	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDLIBS) $(LDFLAGS)
 
+#$(antlr_objects) $(runtime_objects): CXXFLAGS = -O2 $(warning_flags) $(CPPDIRS) $(added_flags)
 $(build_dir)/%$o: %$s
 	@echo "  CXX   $@"
-	mkdir -p $(dir $@)
+	@mkdir -p $(dir $@)
 	$(CXX) -c $(CXXFLAGS) -o $@ $^ $(LDLIBS) $(LDFLAGS)
 
 $(antlr_source): $(antlr_dir)

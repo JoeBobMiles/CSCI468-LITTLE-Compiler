@@ -9,6 +9,12 @@ struct AstStatement;
 
 #include "symbol-table.h"
 
+#include <antlr4-runtime.h>
+#include <TINYLexer.h>
+#include <TINYParser.h>
+
+#include "simplify-antlr-types.h"
+
 #define MAX_TABLES 32 /* 32 tables should be enough for anyone */
 
 enum ExprType {
@@ -136,5 +142,57 @@ struct Program {
     /* stack representing nesting, tables duplicated in tableList */
     SymbolTable *tableStack[MAX_TABLES];
 };
+
+SymbolTable *openNewScope(Program *program, cchar *scopeName);
+void openScope(Program *program, SymbolTable *scope);
+SymbolTable *getScope(Program *program);
+SymbolEntry *findDecl(Program *program, cchar *id);
+void closeScope(Program *program);
+
+void addDeclarations(Program *program, DeclContext *decl);
+AstStatement *addStatements(Program *program, StmtListContext *stmtList);
+
+AstExpr *astFromId(Program *program, IdContext *id);
+AstExpr *astFromIdList(Program *program, IdListContext *list);
+AstExpr *astFromExprPrefix(Program *program, ExprPrefixContext *prefix);
+AstExpr *astFromPostfixExpr(Program *program, PostfixExprContext *postfix);
+AstExpr *astFromFactorPrefix(Program *program, FactorPrefixContext *prefix);
+AstExpr *astFromFactor(Program *program, FactorContext *factor);
+AstExpr *astFromExpr(Program *program, ExprContext *expr);
+AstExpr *astFromCond(Program *program, CondContext *cond);
+
+void freeExpr(AstExpr *expr);
+void freeRoot(AstRoot *root);
+void freeProgram(Program *program);
+
+AstRoot *makeFuncRoot(Program *program, FuncDeclContext *ctx, cchar *id);
+Program *makeProgram(FileContext *ctx);
+
+static inline
+cchar *getNewBlockName(Program *program) {
+    static char buffer[256];
+    snprintf(buffer, sizeof buffer, "BLOCK %d", ++program->blockCount);
+    return buffer;
+}
+
+static inline
+u32 getNewTempNumber(Program *program) {
+    return program->tempCount++;
+}
+
+static inline
+cchar *typeString(char type) {
+    cchar *result = 0;
+
+    switch (type) {
+    case 'i': result = "INT"; break;
+    case 'f': result = "FLOAT"; break;
+    case 'v': result = "VOID"; break;
+    case 's': result = "STRING"; break;
+    InvalidDefaultCase;
+    }
+
+    return result;
+}
 
 #endif
