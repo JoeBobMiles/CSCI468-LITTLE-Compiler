@@ -1,7 +1,12 @@
 /build
 /antlr
 /tags
+
+# ignore that directory that the test script deploys
+/usertest
+
 # ignore that pdf I'm keeping at the git root
 /*.pdf
 
-.DS_Store # Apple stuff that doesn't matter to us
+# Apple stuff that doesn't matter to us
+.DS_Store
