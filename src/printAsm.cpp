@@ -27,6 +27,7 @@ void printExpr(AstExpr *expr, s32 altTemp, cchar *jumpLabel) {
 
     cchar *op = 0;
     char opType = expr->logicalType == 'f'? 'r': expr->logicalType;
+    s32 tempNumber = altTemp > 0? altTemp: expr->tempNumber;
 
     switch (expr->type) {
     case EXPR_Addition:           op = "add";  break;
@@ -46,8 +47,8 @@ void printExpr(AstExpr *expr, s32 altTemp, cchar *jumpLabel) {
     case EXPR_GreaterThan:        op = "jle";  break;
     case EXPR_Equal:              op = "jne"; break;
     case EXPR_NotEqual:           op = "jeq"; break;
-    case EXPR_LessThanOrEqual:    op = "jlt"; break;
-    case EXPR_GreaterThanOrEqual: op = "jgt"; break;
+    case EXPR_LessThanOrEqual:    op = "jgt"; break;
+    case EXPR_GreaterThanOrEqual: op = "jlt"; break;
 
     default: break;
     }
@@ -59,13 +60,13 @@ void printExpr(AstExpr *expr, s32 altTemp, cchar *jumpLabel) {
     case EXPR_Division:
         assert(op);
 
-        printExpr(expr->asBinaryOp.leftChild, expr->tempNumber, 0);
+        printExpr(expr->asBinaryOp.leftChild, tempNumber, 0);
         printExpr(expr->asBinaryOp.rightChild, -1, 0);
 
         /* TODO: can the right child be a non-register? */
         printf("%s%c r%d r%d\n", op, opType,
                expr->asBinaryOp.rightChild->tempNumber,
-               altTemp > 0? altTemp: expr->tempNumber);
+               tempNumber);
         break;
 
     case EXPR_LessThan:
@@ -94,7 +95,7 @@ void printExpr(AstExpr *expr, s32 altTemp, cchar *jumpLabel) {
     case EXPR_Symbol:
         printf("move %s r%d\n",
                expr->asTerminal.text,
-               altTemp > 0? altTemp: expr->tempNumber);
+               tempNumber);
         break;
 
     case EXPR_Function:
