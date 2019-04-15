@@ -43,6 +43,18 @@ int main(int argc, char **argv) {
         FileContext *fileCtx = parser.file();
         Program *program = makeProgram(fileCtx);
 #if PRINT_ASM
+        /* TODO: optimizeProgramForAsm(program);
+         *
+         * This will do things like turn `a := a + 1` into `++a`, which is not
+         * supported by the TINY code, but is supported by the asm. Likewise
+         * for `a := a - 1` into `--a`. This is the easiest optimization to
+         * find, I think, asside from the very basic stuff that we're already
+         * doing at print time (like use id instead of reg when we can).
+         *
+         * Otherwise, this call can also do constant folding, though perhaps
+         * only on integers, as we have "infinite" precision for those, but not
+         * for floats.
+         */
         printProgramAsAsm(program);
 #else
         printProgramAsTINY(program);

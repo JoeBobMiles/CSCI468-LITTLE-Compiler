@@ -51,7 +51,7 @@ struct AstExpr {
     char logicalType;
     /* 1B of padding here */
 
-    u32 tempNumber; /* non-terminals get a temp number. */
+    s32 tempNumber; /* non-terminals get a temp number. */
 
     union {
         struct {
@@ -179,7 +179,7 @@ cchar *getNewBlockName(Program *program) {
 }
 
 static inline
-u32 getNewTempNumber(Program *program) {
+s32 getNewTempNumber(Program *program) {
     return program->tempCount++;
 }
 

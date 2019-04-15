@@ -57,45 +57,66 @@ void printExpr(AstExpr *expr, s32 altTemp, cchar *jumpLabel) {
     case EXPR_Addition:
     case EXPR_Subtraction:
     case EXPR_Multiplication:
-    case EXPR_Division:
+    case EXPR_Division: {
         assert(op);
 
-        printExpr(expr->asBinaryOp.leftChild, tempNumber, 0);
-        printExpr(expr->asBinaryOp.rightChild, -1, 0);
+        AstExpr *lhs = expr->asBinaryOp.leftChild;
+        AstExpr *rhs = expr->asBinaryOp.rightChild;
 
-        /* TODO: can the right child be a non-register? */
-        printf("%s%c r%d r%d\n", op, opType,
-               expr->asBinaryOp.rightChild->tempNumber,
-               tempNumber);
-        break;
+        printExpr(lhs, tempNumber, 0);
+
+        switch (rhs->type) {
+        case EXPR_IntLiteral:
+        case EXPR_FloatLiteral:
+        case EXPR_Symbol:
+            printf("%s%c %s r%d\n", op, opType,
+                   rhs->asTerminal.text, tempNumber);
+            break;
+
+        default:
+            printExpr(rhs, -1, 0);
+            printf("%s%c r%d r%d\n", op, opType,
+                   rhs->tempNumber, tempNumber);
+            break;
+        }
+    } break;
 
     case EXPR_LessThan:
     case EXPR_GreaterThan:
     case EXPR_Equal:
     case EXPR_NotEqual:
     case EXPR_LessThanOrEqual:
-    case EXPR_GreaterThanOrEqual:
+    case EXPR_GreaterThanOrEqual: {
         assert(op);
         assert(jumpLabel);
 
-        printExpr(expr->asBinaryOp.leftChild, -1, 0);
-        printExpr(expr->asBinaryOp.rightChild, -1, 0);
+        AstExpr *lhs = expr->asBinaryOp.leftChild;
+        AstExpr *rhs = expr->asBinaryOp.rightChild;
 
-        /* TODO: can we compare non-registers? */
-        printf("cmp%c r%d r%d\n", opType,
-               expr->asBinaryOp.leftChild->tempNumber,
-               expr->asBinaryOp.rightChild->tempNumber);
+        printExpr(rhs, -1, 0);
+
+        switch (rhs->type) {
+        case EXPR_IntLiteral:
+        case EXPR_FloatLiteral:
+        case EXPR_Symbol:
+            printf("cmp%c %s r%d\n", opType,
+                lhs->asTerminal.text, rhs->tempNumber);
+            break;
+
+        default:
+            printExpr(lhs, -1, 0);
+            printf("cmp%c r%d r%d\n", opType,
+                lhs->tempNumber, rhs->tempNumber);
+            break;
+        }
+
         printf("%s %s\n", op, jumpLabel);
-
-        break;
+    } break;
 
     case EXPR_IntLiteral:
     case EXPR_FloatLiteral:
-    case EXPR_StringLiteral:
     case EXPR_Symbol:
-        printf("move %s r%d\n",
-               expr->asTerminal.text,
-               tempNumber);
+        printf("move %s r%d\n", expr->asTerminal.text, tempNumber);
         break;
 
     case EXPR_Function:
@@ -156,14 +177,8 @@ void printStatement(Program *program, AstStatement *statement) {
             assert(symbol); /* TODO: don't assert, check! */
 
             switch (symbol->logicalType) {
-            case 'i':
-                syscall = "readi";
-                break;
-
-            case 'f':
-                syscall = "readr";
-                break;
-
+            case 'i': syscall = "readi"; break;
+            case 'f': syscall = "readr"; break;
             InvalidDefaultCase;
             }
 
@@ -184,18 +199,9 @@ void printStatement(Program *program, AstStatement *statement) {
             assert(symbol); /* TODO: don't assert, check! */
 
             switch (symbol->logicalType) {
-            case 'i':
-                syscall = "writei";
-                break;
-
-            case 'f':
-                syscall = "writer";
-                break;
-
-            case 's':
-                syscall = "writes";
-                break;
-
+            case 'i': syscall = "writei"; break;
+            case 'f': syscall = "writer"; break;
+            case 's': syscall = "writes"; break;
             InvalidDefaultCase;
             }
 
