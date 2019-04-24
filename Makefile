@@ -33,6 +33,8 @@ override CXXFLAGS := -g $(warning_flags) $(CPPDIRS) $(added_flags) -fsanitize=ad
 override LDLIBS   := $(LDLIBS)
 override LDFLAGS  := $(LDFLAGS)
 
+default: release
+
 debug: $(target) $(emulator)
 
 release: CXXFLAGS = -O2 $(warning_flags) $(CPPDIRS) $(added_flags)
