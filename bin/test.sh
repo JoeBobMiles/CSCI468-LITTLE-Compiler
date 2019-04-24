@@ -7,9 +7,9 @@ failed=0
 temp=usertest
 
 run_test() {
-    case "$1" in
-        step4_testcase*) input="2 4 25 17 6 32 1 4 15 4";;
-        test_mult*)      input="3 2";;
+    case "${1##*/}" in
+        step4_testcase.*) input="2 4 25 17 6 32 1 4 15 4";;
+        test_mult.*)      input="3 2";;
     esac
 
     echo "${input-}" | ./build/emulator "$1"
